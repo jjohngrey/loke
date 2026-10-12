@@ -1,0 +1,14 @@
+{
+  "name": "loke", "private": true, "version": "0.1.0",
+  "workspaces": ["layers/input/web", "layers/input/desktop", "shared/contracts"],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "desktop": "node scripts/dev.mjs --desktop",
+    "build": "npm run build --workspace @loke/input-web",
+    "typecheck": "npm run typecheck --workspace @loke/input-web",
+    "contracts:generate": ".venv/bin/python scripts/export_contracts.py && json2ts -i shared/contracts/generated/contracts.schema.json -o shared/contracts/src/generated.ts",
+    "test": ".venv/bin/python -m pytest",
+    "check": "npm run contracts:generate && npm run typecheck && npm test"
+  },
+  "devDependencies": {"json-schema-to-typescript": "^15.0.4"}
+}

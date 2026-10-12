@@ -1,0 +1,738 @@
+{
+  "$defs": {
+    "AnswerInput": {
+      "additionalProperties": false,
+      "properties": {
+        "request_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        },
+        "card_id": {
+          "title": "Card Id",
+          "type": "string"
+        },
+        "answer": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Answer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "card_id",
+        "answer"
+      ],
+      "title": "AnswerInput",
+      "type": "object"
+    },
+    "ClockAdvance": {
+      "additionalProperties": false,
+      "properties": {
+        "hours": {
+          "default": 24,
+          "maximum": 168,
+          "minimum": 1,
+          "title": "Hours",
+          "type": "integer"
+        }
+      },
+      "title": "ClockAdvance",
+      "type": "object"
+    },
+    "Concept": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "aliases": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "array"
+        },
+        "prerequisites": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Prerequisites",
+          "type": "array"
+        },
+        "resource_url": {
+          "title": "Resource Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "aliases",
+        "prerequisites",
+        "resource_url"
+      ],
+      "title": "Concept",
+      "type": "object"
+    },
+    "ConceptState": {
+      "additionalProperties": false,
+      "properties": {
+        "concept_id": {
+          "title": "Concept Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "unassessed",
+            "needs_practice",
+            "recent_unassisted_correct",
+            "attempted"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "next_review_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Review At"
+        }
+      },
+      "required": [
+        "concept_id",
+        "status",
+        "evidence_ids"
+      ],
+      "title": "ConceptState",
+      "type": "object"
+    },
+    "ContextBundle": {
+      "additionalProperties": false,
+      "properties": {
+        "learner_id": {
+          "title": "Learner Id",
+          "type": "string"
+        },
+        "agent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Agent Id"
+        },
+        "goal": {
+          "title": "Goal",
+          "type": "string"
+        },
+        "state_revision": {
+          "title": "State Revision",
+          "type": "integer"
+        },
+        "plan_revision": {
+          "title": "Plan Revision",
+          "type": "integer"
+        },
+        "concepts": {
+          "items": {
+            "$ref": "#/$defs/Concept"
+          },
+          "title": "Concepts",
+          "type": "array"
+        },
+        "states": {
+          "items": {
+            "$ref": "#/$defs/ConceptState"
+          },
+          "title": "States",
+          "type": "array"
+        },
+        "events": {
+          "items": {
+            "$ref": "#/$defs/EvidenceEvent"
+          },
+          "title": "Events",
+          "type": "array"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/SourceChunk"
+          },
+          "title": "Sources",
+          "type": "array"
+        }
+      },
+      "required": [
+        "learner_id",
+        "agent_id",
+        "goal",
+        "state_revision",
+        "plan_revision",
+        "concepts",
+        "states",
+        "events",
+        "sources"
+      ],
+      "title": "ContextBundle",
+      "type": "object"
+    },
+    "EvidenceEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "card_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Card Id"
+        },
+        "expected_answer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Answer"
+        },
+        "grader": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Grader"
+        },
+        "concept_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Concept Id"
+        },
+        "kind": {
+          "enum": [
+            "study_report",
+            "quiz_answer"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "assessment": {
+          "enum": [
+            "not_assessed",
+            "correct",
+            "incorrect",
+            "ungraded"
+          ],
+          "title": "Assessment",
+          "type": "string"
+        },
+        "assistance": {
+          "enum": [
+            "none",
+            "after_explanation"
+          ],
+          "title": "Assistance",
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "text",
+            "voice",
+            "attachment",
+            "quiz"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "concept_id",
+        "kind",
+        "text",
+        "occurred_at",
+        "assessment",
+        "assistance",
+        "source"
+      ],
+      "title": "EvidenceEvent",
+      "type": "object"
+    },
+    "GoalInput": {
+      "additionalProperties": false,
+      "properties": {
+        "request_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        },
+        "goal": {
+          "maxLength": 500,
+          "minLength": 3,
+          "title": "Goal",
+          "type": "string"
+        },
+        "storage_consent": {
+          "title": "Storage Consent",
+          "type": "boolean"
+        },
+        "reminders_enabled": {
+          "default": true,
+          "title": "Reminders Enabled",
+          "type": "boolean"
+        },
+        "study_minutes": {
+          "default": 10,
+          "maximum": 30,
+          "minimum": 3,
+          "title": "Study Minutes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "request_id",
+        "goal",
+        "storage_consent"
+      ],
+      "title": "GoalInput",
+      "type": "object"
+    },
+    "LearningInput": {
+      "additionalProperties": false,
+      "properties": {
+        "request_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 15000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "mode": {
+          "default": "text",
+          "enum": [
+            "text",
+            "voice",
+            "attachment"
+          ],
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "text"
+      ],
+      "title": "LearningInput",
+      "type": "object"
+    },
+    "LearningView": {
+      "additionalProperties": false,
+      "properties": {
+        "learner_id": {
+          "title": "Learner Id",
+          "type": "string"
+        },
+        "goal": {
+          "title": "Goal",
+          "type": "string"
+        },
+        "storage_consent": {
+          "title": "Storage Consent",
+          "type": "boolean"
+        },
+        "reminders_enabled": {
+          "title": "Reminders Enabled",
+          "type": "boolean"
+        },
+        "agent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Agent Id"
+        },
+        "state_revision": {
+          "title": "State Revision",
+          "type": "integer"
+        },
+        "plan_revision": {
+          "title": "Plan Revision",
+          "type": "integer"
+        },
+        "model_mode": {
+          "title": "Model Mode",
+          "type": "string"
+        },
+        "demo_clock_hours": {
+          "title": "Demo Clock Hours",
+          "type": "integer"
+        },
+        "response": {
+          "title": "Response",
+          "type": "string"
+        },
+        "plan": {
+          "items": {
+            "$ref": "#/$defs/NextActivity"
+          },
+          "title": "Plan",
+          "type": "array"
+        },
+        "active_quiz": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QuizCard"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "states": {
+          "items": {
+            "$ref": "#/$defs/ConceptState"
+          },
+          "title": "States",
+          "type": "array"
+        },
+        "concepts": {
+          "items": {
+            "$ref": "#/$defs/Concept"
+          },
+          "title": "Concepts",
+          "type": "array"
+        },
+        "events": {
+          "items": {
+            "$ref": "#/$defs/EvidenceEvent"
+          },
+          "title": "Events",
+          "type": "array"
+        },
+        "notifications": {
+          "items": {
+            "$ref": "#/$defs/Notification"
+          },
+          "title": "Notifications",
+          "type": "array"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/SourceChunk"
+          },
+          "title": "Sources",
+          "type": "array"
+        }
+      },
+      "required": [
+        "learner_id",
+        "goal",
+        "storage_consent",
+        "reminders_enabled",
+        "agent_id",
+        "state_revision",
+        "plan_revision",
+        "model_mode",
+        "demo_clock_hours",
+        "response",
+        "plan",
+        "active_quiz",
+        "states",
+        "concepts",
+        "events",
+        "notifications",
+        "sources"
+      ],
+      "title": "LearningView",
+      "type": "object"
+    },
+    "NextActivity": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "diagnostic",
+            "practice",
+            "review",
+            "learn"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "concept_id": {
+          "title": "Concept Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "reason_event_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reason Event Ids",
+          "type": "array"
+        },
+        "minutes": {
+          "default": 2,
+          "title": "Minutes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "concept_id",
+        "title",
+        "reason",
+        "reason_event_ids"
+      ],
+      "title": "NextActivity",
+      "type": "object"
+    },
+    "Notification": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "reason_event_id": {
+          "title": "Reason Event Id",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "reason_event_id",
+        "created_at"
+      ],
+      "title": "Notification",
+      "type": "object"
+    },
+    "QuizCard": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "concept_id": {
+          "title": "Concept Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "mcq",
+            "blank"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "prompt": {
+          "title": "Prompt",
+          "type": "string"
+        },
+        "options": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Options",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "concept_id",
+        "kind",
+        "prompt"
+      ],
+      "title": "QuizCard",
+      "type": "object"
+    },
+    "ReminderSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "title": "ReminderSettings",
+      "type": "object"
+    },
+    "SourceChunk": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "title",
+        "text"
+      ],
+      "title": "SourceChunk",
+      "type": "object"
+    },
+    "TopicProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "concept_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Concept Id"
+        },
+        "explanation": {
+          "maxLength": 800,
+          "title": "Explanation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "concept_id",
+        "explanation"
+      ],
+      "title": "TopicProposal",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "goal": {
+      "$ref": "#/$defs/GoalInput"
+    },
+    "learning_input": {
+      "$ref": "#/$defs/LearningInput"
+    },
+    "answer": {
+      "$ref": "#/$defs/AnswerInput"
+    },
+    "reminders": {
+      "$ref": "#/$defs/ReminderSettings"
+    },
+    "clock": {
+      "$ref": "#/$defs/ClockAdvance"
+    },
+    "view": {
+      "$ref": "#/$defs/LearningView"
+    },
+    "context": {
+      "$ref": "#/$defs/ContextBundle"
+    },
+    "proposal": {
+      "$ref": "#/$defs/TopicProposal"
+    }
+  },
+  "required": [
+    "goal",
+    "learning_input",
+    "answer",
+    "reminders",
+    "clock",
+    "view",
+    "context",
+    "proposal"
+  ],
+  "title": "ContractBundle",
+  "type": "object"
+}
