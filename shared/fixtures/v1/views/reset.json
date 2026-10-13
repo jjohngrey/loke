@@ -1,0 +1,96 @@
+{
+  "learner_id": "fixture-learner",
+  "goal": "",
+  "storage_consent": false,
+  "reminders_enabled": false,
+  "agent_id": null,
+  "state_revision": 0,
+  "plan_revision": 0,
+  "model_mode": "demo",
+  "demo_clock_hours": 0,
+  "response": "Set one learning goal to begin.",
+  "plan": [],
+  "active_quiz": null,
+  "states": [],
+  "concepts": [
+    {
+      "id": "ionic_gradients",
+      "label": "Ionic gradients",
+      "aliases": [
+        "gradient",
+        "pump",
+        "concentration"
+      ],
+      "prerequisites": [],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter01.html"
+    },
+    {
+      "id": "selective_permeability",
+      "label": "Selective permeability",
+      "aliases": [
+        "permeability",
+        "leak",
+        "channel"
+      ],
+      "prerequisites": [],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter01.html"
+    },
+    {
+      "id": "resting_potential",
+      "label": "Resting potential",
+      "aliases": [
+        "resting",
+        "membrane potential"
+      ],
+      "prerequisites": [
+        "ionic_gradients",
+        "selective_permeability"
+      ],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter01.html"
+    },
+    {
+      "id": "action_potential_phases",
+      "label": "Action-potential phases",
+      "aliases": [
+        "action potential",
+        "depolarization",
+        "repolarization",
+        "sodium",
+        "potassium"
+      ],
+      "prerequisites": [
+        "resting_potential"
+      ],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter02.html"
+    },
+    {
+      "id": "presynaptic_calcium_entry",
+      "label": "Presynaptic calcium entry",
+      "aliases": [
+        "calcium",
+        "presynaptic"
+      ],
+      "prerequisites": [
+        "action_potential_phases"
+      ],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter05.html"
+    },
+    {
+      "id": "transmitter_release",
+      "label": "Transmitter release",
+      "aliases": [
+        "transmitter",
+        "synapse",
+        "vesicle",
+        "release"
+      ],
+      "prerequisites": [
+        "presynaptic_calcium_entry"
+      ],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter05.html"
+    }
+  ],
+  "events": [],
+  "notifications": [],
+  "sources": []
+}

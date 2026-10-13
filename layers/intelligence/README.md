@@ -30,7 +30,7 @@ Current implementation supports demo-mode goal/input/answer, a stable stored sub
 
 The code does not yet implement several specification promises:
 
-- `MemoryPort` uses mutable `dict[str, Any]` snapshots and callbacks. Scheduler calls `learner_ids()`, which is missing from that protocol. `ContextBundle` is typed but not a complete storage port.
+- `MemoryPort` uses mutable `dict[str, Any]` snapshots and callbacks. Scheduler enumeration (`learner_ids`) is now declared in the protocol. `ContextBundle` is typed but not a complete storage port.
 - Graph is represented by catalog prerequisite lists, not typed versioned edges. `choose_plan` checks only direct prerequisites, hardcodes fallback concepts, and has no completed-activity tracking. Every `_replan` increments plan revision, whether or not the plan meaningfully changes.
 - `active_card_id` means an offered question. There is no persisted attempt lifecycle, active-quiz suppression or notification action/snooze API. Reports and scheduler replans can replace the offered card.
 - `assisted_concepts` persists indefinitely. After an explanation the concept stays assisted across future independent sessions. This is conservative but cannot support a meaningful later unassisted review.
@@ -39,7 +39,7 @@ The code does not yet implement several specification promises:
 - Audio checks suffix and bytes but not decoded media type/duration. Transcription success returns unsaved text; no transcript enters memory before confirmation.
 - Due selection happens before the dispatch transaction. Inside it, consent, reminders, latest evidence, clock and daily cap are not all rechecked. Scheduler iterates all learners but is intentionally single-worker, without leases.
 - Evidence timestamps currently use the shifted demo clock. This conflicts with the specification's requirement to retain real observation timestamps. Expiry uses wall time, but runs every scheduler tick rather than hourly.
-- No durable reset generation prevents delete/expiry and re-consent races. Plan/graph expected versions are absent from commit inputs. HTTP responses have no declared response models even though Python returns LearningView.
+- No durable reset generation prevents delete/expiry and re-consent races. Plan/graph expected versions are absent from commit inputs. HTTP responses now declare LearningView/transcription models; lifecycle and version envelopes remain proposed.
 - Store request outcomes retain full snapshots in the jobs table without a bounded cache; C owns its replacement. Current events are append-only in logical use, but relational constraints, replay and ordered source/notification queries need C's work.
 
 Treat these as implementation tickets, not shipped capabilities. This document defines the handoff plan, not a schema migration already applied.
@@ -106,6 +106,11 @@ For each slice, B publishes Python models/ports, generated artifacts and valid r
 ## Work sequence and definition of done
 
 ### B0: freeze contracts and unblock teammates, first hour
+
+Published baseline: [v1 fixtures and integration guide](../../shared/fixtures/README.md), generated
+contracts, OpenAPI response models, and `tests/fakes.py` (database-free MemoryPort). A can consume
+the current screen/error cases; C can exercise commit/dedupe/rollback semantics. No proposed
+lifecycle/reset/notification extension has been accepted or implemented by this baseline slice.
 
 Publish a minimal current-contract fixture pack under `shared/fixtures/`: empty view, saved goal, wrong answer with prerequisite reason, ungraded answer, assisted correct, sources, due reminder, reset and errors. Use stable fixture IDs from the reviewed catalog, timezone-aware timestamps and real cross-references. Keep future extension fixtures separately versioned until their schema exists. Validate fixtures through Pydantic; A consumes generated types, C verifies port behavior.
 

@@ -1,0 +1,76 @@
+[
+  {
+    "status": 400,
+    "method": "POST",
+    "path": "/api/goal",
+    "request": {
+      "request_id": "goal-1",
+      "goal": "Understand neuronal transmitter release",
+      "storage_consent": false,
+      "reminders_enabled": true,
+      "study_minutes": 10
+    },
+    "body": {
+      "detail": "Consent is required to save your learning history."
+    }
+  },
+  {
+    "status": 403,
+    "method": "GET",
+    "path": "/api/view",
+    "request": null,
+    "body": {
+      "detail": "Local session token is required."
+    }
+  },
+  {
+    "status": 409,
+    "method": "POST",
+    "path": "/api/quiz/answer",
+    "request": {
+      "request_id": "answer-1",
+      "card_id": "ap-depolarization",
+      "answer": "B"
+    },
+    "body": {
+      "detail": "This request ID was already used for different content."
+    }
+  },
+  {
+    "status": 422,
+    "method": "POST",
+    "path": "/api/input",
+    "request": {
+      "request_id": "invalid-1",
+      "text": ""
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "string_too_short",
+          "loc": [
+            "body",
+            "text"
+          ],
+          "msg": "String should have at least 1 character",
+          "input": "",
+          "ctx": {
+            "min_length": 1
+          }
+        }
+      ]
+    }
+  },
+  {
+    "status": 502,
+    "method": "POST",
+    "path": "/api/input",
+    "request": {
+      "request_id": "provider-1",
+      "text": "Action potentials"
+    },
+    "body": {
+      "detail": "Text provider did not return a valid proposal. Retry or use demo mode."
+    }
+  }
+]

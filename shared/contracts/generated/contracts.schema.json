@@ -28,6 +28,20 @@
       "title": "AnswerInput",
       "type": "object"
     },
+    "ApiError": {
+      "additionalProperties": false,
+      "properties": {
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "detail"
+      ],
+      "title": "ApiError",
+      "type": "object"
+    },
     "ClockAdvance": {
       "additionalProperties": false,
       "properties": {
@@ -694,6 +708,32 @@
       ],
       "title": "TopicProposal",
       "type": "object"
+    },
+    "TranscriptionResult": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "provenance": {
+          "const": "audio_transcription",
+          "default": "audio_transcription",
+          "title": "Provenance",
+          "type": "string"
+        },
+        "saved": {
+          "const": false,
+          "default": false,
+          "title": "Saved",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "TranscriptionResult",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -721,6 +761,12 @@
     },
     "proposal": {
       "$ref": "#/$defs/TopicProposal"
+    },
+    "transcription": {
+      "$ref": "#/$defs/TranscriptionResult"
+    },
+    "error": {
+      "$ref": "#/$defs/ApiError"
     }
   },
   "required": [
@@ -731,7 +777,9 @@
     "clock",
     "view",
     "context",
-    "proposal"
+    "proposal",
+    "transcription",
+    "error"
   ],
   "title": "ContractBundle",
   "type": "object"

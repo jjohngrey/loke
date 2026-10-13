@@ -1,0 +1,108 @@
+{
+  "learner_id": "fixture-learner",
+  "agent_id": "31cce85f-3778-5844-bcc9-0662276fc901",
+  "goal": "Understand neuronal transmitter release",
+  "state_revision": 2,
+  "plan_revision": 1,
+  "concepts": [
+    {
+      "id": "ionic_gradients",
+      "label": "Ionic gradients",
+      "aliases": [
+        "gradient",
+        "pump",
+        "concentration"
+      ],
+      "prerequisites": [],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter01.html"
+    },
+    {
+      "id": "selective_permeability",
+      "label": "Selective permeability",
+      "aliases": [
+        "permeability",
+        "leak",
+        "channel"
+      ],
+      "prerequisites": [],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter01.html"
+    },
+    {
+      "id": "resting_potential",
+      "label": "Resting potential",
+      "aliases": [
+        "resting",
+        "membrane potential"
+      ],
+      "prerequisites": [
+        "ionic_gradients",
+        "selective_permeability"
+      ],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter01.html"
+    },
+    {
+      "id": "action_potential_phases",
+      "label": "Action-potential phases",
+      "aliases": [
+        "action potential",
+        "depolarization",
+        "repolarization",
+        "sodium",
+        "potassium"
+      ],
+      "prerequisites": [
+        "resting_potential"
+      ],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter02.html"
+    },
+    {
+      "id": "presynaptic_calcium_entry",
+      "label": "Presynaptic calcium entry",
+      "aliases": [
+        "calcium",
+        "presynaptic"
+      ],
+      "prerequisites": [
+        "action_potential_phases"
+      ],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter05.html"
+    },
+    {
+      "id": "transmitter_release",
+      "label": "Transmitter release",
+      "aliases": [
+        "transmitter",
+        "synapse",
+        "vesicle",
+        "release"
+      ],
+      "prerequisites": [
+        "presynaptic_calcium_entry"
+      ],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter05.html"
+    }
+  ],
+  "states": [],
+  "events": [
+    {
+      "id": "19298b37-a90a-5828-b785-2297fb0a535b",
+      "card_id": null,
+      "expected_answer": null,
+      "grader": null,
+      "concept_id": "action_potential_phases",
+      "kind": "study_report",
+      "text": "Action potentials involve sodium and potassium.",
+      "occurred_at": "2026-10-17T01:00:00Z",
+      "assessment": "not_assessed",
+      "assistance": "none",
+      "source": "attachment"
+    }
+  ],
+  "sources": [
+    {
+      "source_id": "d62c5d3e5add997c:0",
+      "title": "Your study note",
+      "text": "Action potentials involve sodium and potassium."
+    }
+  ]
+}

@@ -7,6 +7,9 @@ from .models import LearningView
 
 
 class MemoryPort(Protocol):
+    """Current single-worker snapshot boundary; see shared/fixtures/README.md."""
+
+    def learner_ids(self) -> list[str]: ...
     def snapshot(self, learner_id: str) -> dict[str, Any]: ...
     def mutate(
         self,

@@ -1,0 +1,130 @@
+{
+  "learner_id": "fixture-learner",
+  "goal": "Understand neuronal transmitter release",
+  "storage_consent": true,
+  "reminders_enabled": true,
+  "agent_id": "80e847dc-441d-560b-977e-29bb9e3e1a94",
+  "state_revision": 1,
+  "plan_revision": 1,
+  "model_mode": "demo",
+  "demo_clock_hours": 0,
+  "response": "Your goal is saved. Start with one short check, then connect it to transmitter release.",
+  "plan": [
+    {
+      "kind": "diagnostic",
+      "concept_id": "action_potential_phases",
+      "title": "Action-potential phases",
+      "reason": "Check a prerequisite before connecting it to transmitter release.",
+      "reason_event_ids": [],
+      "minutes": 2
+    },
+    {
+      "kind": "learn",
+      "concept_id": "presynaptic_calcium_entry",
+      "title": "Presynaptic calcium entry",
+      "reason": "Connect neuronal signaling to calcium entry.",
+      "reason_event_ids": [],
+      "minutes": 2
+    },
+    {
+      "kind": "learn",
+      "concept_id": "transmitter_release",
+      "title": "Transmitter release",
+      "reason": "Connect the sequence to your learning goal.",
+      "reason_event_ids": [],
+      "minutes": 2
+    }
+  ],
+  "active_quiz": {
+    "id": "ap-depolarization",
+    "concept_id": "action_potential_phases",
+    "kind": "mcq",
+    "prompt": "In a typical neuron, what mainly drives the rapid rising phase?",
+    "options": {
+      "A": "K+ leaves",
+      "B": "Na+ enters"
+    }
+  },
+  "states": [],
+  "concepts": [
+    {
+      "id": "ionic_gradients",
+      "label": "Ionic gradients",
+      "aliases": [
+        "gradient",
+        "pump",
+        "concentration"
+      ],
+      "prerequisites": [],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter01.html"
+    },
+    {
+      "id": "selective_permeability",
+      "label": "Selective permeability",
+      "aliases": [
+        "permeability",
+        "leak",
+        "channel"
+      ],
+      "prerequisites": [],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter01.html"
+    },
+    {
+      "id": "resting_potential",
+      "label": "Resting potential",
+      "aliases": [
+        "resting",
+        "membrane potential"
+      ],
+      "prerequisites": [
+        "ionic_gradients",
+        "selective_permeability"
+      ],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter01.html"
+    },
+    {
+      "id": "action_potential_phases",
+      "label": "Action-potential phases",
+      "aliases": [
+        "action potential",
+        "depolarization",
+        "repolarization",
+        "sodium",
+        "potassium"
+      ],
+      "prerequisites": [
+        "resting_potential"
+      ],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter02.html"
+    },
+    {
+      "id": "presynaptic_calcium_entry",
+      "label": "Presynaptic calcium entry",
+      "aliases": [
+        "calcium",
+        "presynaptic"
+      ],
+      "prerequisites": [
+        "action_potential_phases"
+      ],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter05.html"
+    },
+    {
+      "id": "transmitter_release",
+      "label": "Transmitter release",
+      "aliases": [
+        "transmitter",
+        "synapse",
+        "vesicle",
+        "release"
+      ],
+      "prerequisites": [
+        "presynaptic_calcium_entry"
+      ],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter05.html"
+    }
+  ],
+  "events": [],
+  "notifications": [],
+  "sources": []
+}
