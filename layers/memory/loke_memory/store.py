@@ -212,11 +212,12 @@ class Store:
             transform(current)
             if current.get("generation_id") != generation:
                 raise ValueError("A transform cannot change its memory generation.")
+            current["plan_revision"] = before["plan_revision"] + int(
+                current["plan"] != before["plan"] or current["active_card_id"] != before["active_card_id"])
             if current != before:
                 if not current["storage_consent"]:
                     raise ValueError("Storage consent is required for a learning commit.")
                 current["state_revision"] = before["state_revision"] + 1
-                current["plan_revision"] = before["plan_revision"] + int(current["plan"] != before["plan"])
                 self._persist(conn, learner_id, generation, before, current)
             # Nonconsented no-ops must not create learner content or cache rows.
             if current["storage_consent"]:
