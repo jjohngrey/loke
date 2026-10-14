@@ -26,7 +26,7 @@ def test_legacy_upgrade_preserves_records_and_removes_old_content(pg_url):
         conn.execute(insert(legacy.events).values(id="one:e1", learner_id="one", data=event))
     migrate(engine)
     with engine.connect() as conn:
-        assert conn.execute(select(db.events.c.data)).scalar_one() == event
+        assert conn.execute(select(db.events.c.data)).scalar_one() == dict(event, timestamp_provenance="legacy_unverified")
         assert conn.execute(select(db.learners.c.revision)).scalar_one() == 3
         assert "learning_events" not in inspect(conn).get_table_names()
     engine.dispose()
@@ -36,3 +36,64 @@ def test_rejects_sqlite():
     engine = create_engine("sqlite://")
     with pytest.raises(ValueError, match="requires PostgreSQL"):
         migrate(engine)
+
+
+def test_orphan_legacy_records_abort_without_losing_original_data(pg_url):
+    engine = create_engine(pg_url)
+    legacy.metadata.create_all(engine)
+    with engine.begin() as conn:
+        conn.execute(insert(legacy.events).values(id="orphan", learner_id="missing", data={}))
+    with pytest.raises(ValueError, match="unowned record IDs"):
+        migrate(engine)
+    with engine.connect() as conn:
+        assert conn.execute(select(legacy.events.c.id)).scalar_one() == "orphan"
+        assert "memory_learners" not in inspect(conn).get_table_names()
+    engine.dispose()
+
+
+def test_legacy_request_outcome_replays_without_duplicate_goal(pg_url):
+    import hashlib
+    import json
+
+    from loke_contracts.models import GoalInput
+    from loke_intelligence.coordinator import Coordinator, legacy_fingerprint
+    from loke_memory.store import Store
+
+    from .fakes import FakeMemory
+    engine = create_engine(pg_url)
+    legacy.metadata.create_all(engine)
+    payload = GoalInput(request_id="goal", goal="Understand neural signaling", storage_consent=True)
+    old_payload = dict(request_id="goal", goal=payload.goal, storage_consent=True,
+                       reminders_enabled=True, study_minutes=10)
+    old_fingerprint = hashlib.sha256(json.dumps(old_payload, separators=(",", ":")).encode()).hexdigest()
+    assert legacy_fingerprint(payload) == old_fingerprint
+    snapshot = FakeMemory().snapshot("one")
+    snapshot.update(goal=payload.goal, storage_consent=True, agent_id="legacy-agent",
+                    state_revision=1, response="Legacy committed response")
+    snapshot.pop("generation_id")
+    profile = {k: v for k, v in snapshot.items() if k not in
+               {"events", "states", "sources", "plan", "notifications", "review_jobs", "state_revision"}}
+    with engine.begin() as conn:
+        conn.execute(insert(legacy.learners).values(id="one", revision=1, data=profile))
+        conn.execute(insert(legacy.agents).values(id="legacy-agent", learner_id="one",
+            data={"subject_key": "neural-signaling", "prompt_version": "neuro-v1"}))
+        conn.execute(insert(legacy.jobs).values(id="request:one:goal", learner_id="one",
+            data=dict(kind="request", fingerprint=old_fingerprint, outcome=snapshot)))
+    store = Store(pg_url)
+    replay = Coordinator(store).goal("one", payload)
+    assert replay.state_revision == 1
+    assert replay.response == "Legacy committed response"
+    assert replay.agent_id == "legacy-agent"
+    assert store.snapshot("one")["state_revision"] == 1
+    store.engine.dispose()
+    engine.dispose()
+
+
+def test_newer_database_schema_is_rejected(pg_url):
+    engine = create_engine(pg_url)
+    db.versions.create(engine)
+    with engine.begin() as conn:
+        conn.execute(insert(db.versions).values(version=999))
+    with pytest.raises(ValueError, match="newer"):
+        migrate(engine)
+    engine.dispose()

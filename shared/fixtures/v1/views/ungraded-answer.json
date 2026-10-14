@@ -128,6 +128,8 @@
   ],
   "events": [
     {
+      "timestamp_provenance": "wall_clock",
+      "projection_after": null,
       "id": "83db30bc-dae9-5829-96d7-da352cdd60fb",
       "card_id": "ap-depolarization",
       "expected_answer": "b",

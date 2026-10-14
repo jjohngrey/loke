@@ -5,6 +5,9 @@
  * and run json-schema-to-typescript to regenerate this file.
  */
 
+export type GenerationId = string | null;
+export type ExpectedStateRevision = number | null;
+export type ExpectedPlanRevision = number | null;
 export type ChatId = string;
 export type ProjectId = string | null;
 /**
@@ -33,15 +36,29 @@ export type Goal = string;
 export type StorageConsent = boolean;
 export type RemindersEnabled = boolean;
 export type StudyMinutes = number;
+export type GenerationId1 = string | null;
+export type ExpectedStateRevision1 = number | null;
+export type ExpectedPlanRevision1 = number | null;
 export type RequestId1 = string;
 export type Text = string;
 export type Mode = "text" | "voice" | "attachment";
+export type GenerationId2 = string | null;
+export type ExpectedStateRevision2 = number | null;
+export type ExpectedPlanRevision2 = number | null;
 export type RequestId2 = string;
 export type CardId = string;
 export type Answer = string;
+export type GenerationId3 = string | null;
+export type ExpectedStateRevision3 = number | null;
+export type ExpectedPlanRevision3 = number | null;
+export type RequestId3 = string | null;
 export type Enabled = boolean;
+export type GenerationId4 = string | null;
+export type ExpectedStateRevision4 = number | null;
+export type ExpectedPlanRevision4 = number | null;
+export type RequestId4 = string | null;
 export type Hours = number;
-export type GenerationId = string;
+export type GenerationId5 = string;
 export type GraphVersion = string | null;
 export type LearnerId = string;
 export type Goal1 = string;
@@ -75,6 +92,7 @@ export type Aliases = string[];
 export type Prerequisites = string[];
 export type ResourceUrl = string;
 export type Concepts = Concept[];
+export type TimestampProvenance = "wall_clock" | "legacy_unverified";
 export type Id2 = string;
 export type CardId1 = string | null;
 export type ExpectedAnswer = string | null;
@@ -96,13 +114,17 @@ export type SourceId = string;
 export type Title2 = string;
 export type Text2 = string;
 export type Sources = SourceChunk[];
-export type GenerationId1 = string;
+export type ContextTruncated = boolean;
+export type GenerationId6 = string;
 export type AgentId1 = string;
 export type RootId = string;
 export type Score = number;
 export type RecordIds = string[];
 export type Reasons = string[];
+export type CandidateScanTruncated = boolean;
 export type Matches = AgentMatch[];
+export type Role = ("user" | "assistant") | null;
+export type ActionStatus = ("started" | "succeeded" | "failed" | "cancelled" | "committed") | null;
 export type RecordId = string;
 export type AgentId2 = string | null;
 export type ChatId1 = string;
@@ -114,7 +136,8 @@ export type Recent = MemoryExcerpt[];
 export type Summaries = MemoryExcerpt[];
 export type Logs = MemoryExcerpt[];
 export type Truncated = boolean;
-export type GenerationId2 = string;
+export type MaintenanceSaturated = boolean;
+export type GenerationId7 = string;
 export type GraphVersion1 = string | null;
 export type LearnerId1 = string;
 export type AgentId3 = string | null;
@@ -131,13 +154,41 @@ export type Text4 = string;
 export type Provenance = "audio_transcription";
 export type Saved = false;
 export type Detail = string;
-export type GenerationId3 = string;
+export type Operation = string;
+export type Status1 = "started" | "succeeded" | "failed" | "cancelled" | "committed";
+export type ToolName = string | null;
+export type ToolVersion = string | null;
+export type StartedAt = string | null;
+export type EndedAt = string | null;
+/**
+ * @maxItems 5
+ */
+export type MatchedAgentIds =
+  | []
+  | [string]
+  | [string, string]
+  | [string, string, string]
+  | [string, string, string, string]
+  | [string, string, string, string, string];
+export type UserText = string;
+export type Operation1 = string;
+/**
+ * @maxItems 5
+ */
+export type MatchedAgentIds1 =
+  | []
+  | [string]
+  | [string, string]
+  | [string, string, string]
+  | [string, string, string, string]
+  | [string, string, string, string, string];
+export type GenerationId8 = string;
 export type StateRevision2 = number | null;
 export type PlanRevision2 = number | null;
 export type GraphVersion2 = string | null;
 export type Id4 = string;
 export type LearnerId2 = string;
-export type GenerationId4 = string;
+export type GenerationId9 = string;
 export type Kind4 = string;
 export type Token = string;
 export type Owner = string;
@@ -162,7 +213,7 @@ export type GraphHash = string;
 export type DocumentId = string;
 export type ContentHash1 = string;
 export type SourceOnly = true;
-export type Status1 = "ready" | "needs_clarification" | "insufficient_source" | "no_concepts";
+export type Status2 = "ready" | "needs_clarification" | "insufficient_source" | "no_concepts";
 export type Origin = "patterns" | "model" | "fallback";
 export type Id7 = string;
 export type Label1 = string;
@@ -205,6 +256,8 @@ export interface PublishedContracts {
   proposal: TopicProposal;
   transcription: TranscriptionResult;
   error: ApiError;
+  operational_action: OperationalAction;
+  memory_turn: MemoryTurn;
   commit_guard: CommitGuard;
   job_lease: JobLease;
   chat_scope: ChatScope;
@@ -213,6 +266,9 @@ export interface PublishedContracts {
   source_graph: SourceGraph;
 }
 export interface GoalInput {
+  generation_id?: GenerationId;
+  expected_state_revision?: ExpectedStateRevision;
+  expected_plan_revision?: ExpectedPlanRevision;
   scope?: ChatScope;
   request_id: RequestId;
   goal: Goal;
@@ -228,25 +284,39 @@ export interface ChatScope {
   node_tags?: NodeTags;
 }
 export interface LearningInput {
+  generation_id?: GenerationId1;
+  expected_state_revision?: ExpectedStateRevision1;
+  expected_plan_revision?: ExpectedPlanRevision1;
   scope?: ChatScope;
   request_id: RequestId1;
   text: Text;
   mode?: Mode;
 }
 export interface AnswerInput {
+  generation_id?: GenerationId2;
+  expected_state_revision?: ExpectedStateRevision2;
+  expected_plan_revision?: ExpectedPlanRevision2;
   scope?: ChatScope;
   request_id: RequestId2;
   card_id: CardId;
   answer: Answer;
 }
 export interface ReminderSettings {
+  generation_id?: GenerationId3;
+  expected_state_revision?: ExpectedStateRevision3;
+  expected_plan_revision?: ExpectedPlanRevision3;
+  request_id?: RequestId3;
   enabled: Enabled;
 }
 export interface ClockAdvance {
+  generation_id?: GenerationId4;
+  expected_state_revision?: ExpectedStateRevision4;
+  expected_plan_revision?: ExpectedPlanRevision4;
+  request_id?: RequestId4;
   hours?: Hours;
 }
 export interface LearningView {
-  generation_id?: GenerationId;
+  generation_id?: GenerationId5;
   graph_version?: GraphVersion;
   learner_id: LearnerId;
   goal: Goal1;
@@ -298,6 +368,8 @@ export interface Concept {
   resource_url: ResourceUrl;
 }
 export interface EvidenceEvent {
+  timestamp_provenance?: TimestampProvenance;
+  projection_after?: ConceptState | null;
   id: Id2;
   card_id?: CardId1;
   expected_answer?: ExpectedAnswer;
@@ -322,8 +394,9 @@ export interface SourceChunk {
   text: Text2;
 }
 export interface ContextBundle {
+  context_truncated?: ContextTruncated;
   memory?: MemoryContext | null;
-  generation_id?: GenerationId2;
+  generation_id?: GenerationId7;
   graph_version?: GraphVersion1;
   learner_id: LearnerId1;
   agent_id: AgentId3;
@@ -336,12 +409,13 @@ export interface ContextBundle {
   sources: Sources1;
 }
 export interface MemoryContext {
-  generation_id: GenerationId1;
+  generation_id: GenerationId6;
   matches?: Matches;
   recent?: Recent;
   summaries?: Summaries;
   logs?: Logs;
   truncated?: Truncated;
+  maintenance_saturated?: MaintenanceSaturated;
 }
 export interface AgentMatch {
   agent_id: AgentId1;
@@ -349,8 +423,11 @@ export interface AgentMatch {
   score: Score;
   record_ids: RecordIds;
   reasons: Reasons;
+  candidate_scan_truncated?: CandidateScanTruncated;
 }
 export interface MemoryExcerpt {
+  role?: Role;
+  action_status?: ActionStatus;
   record_id: RecordId;
   agent_id?: AgentId2;
   chat_id: ChatId1;
@@ -371,8 +448,23 @@ export interface TranscriptionResult {
 export interface ApiError {
   detail: Detail;
 }
+export interface OperationalAction {
+  operation?: Operation;
+  status?: Status1;
+  tool_name?: ToolName;
+  tool_version?: ToolVersion;
+  started_at?: StartedAt;
+  ended_at?: EndedAt;
+  matched_agent_ids?: MatchedAgentIds;
+}
+export interface MemoryTurn {
+  scope?: ChatScope;
+  user_text: UserText;
+  operation: Operation1;
+  matched_agent_ids?: MatchedAgentIds1;
+}
 export interface CommitGuard {
-  generation_id: GenerationId3;
+  generation_id: GenerationId8;
   state_revision?: StateRevision2;
   plan_revision?: PlanRevision2;
   graph_version?: GraphVersion2;
@@ -380,7 +472,7 @@ export interface CommitGuard {
 export interface JobLease {
   id: Id4;
   learner_id: LearnerId2;
-  generation_id: GenerationId4;
+  generation_id: GenerationId9;
   kind: Kind4;
   token: Token;
   owner: Owner;
@@ -417,7 +509,7 @@ export interface SourceGraph {
   document_id: DocumentId;
   content_hash: ContentHash1;
   source_only?: SourceOnly;
-  status: Status1;
+  status: Status2;
   origin: Origin;
   concepts: Concepts2;
   relations: Relations;

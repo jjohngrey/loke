@@ -2,7 +2,7 @@
 
 This implements B's next standalone feature on `pauline/source-graph-discovery`, based on the
 learning-policy branch. It discovers document-scoped concepts and relationships instead of
-loading the fixed neuroscience catalog. The HTTP/UI/database paths are not changed.
+loading the fixed neuroscience catalog. HTTP/UI discovery paths remain separate. C now provides shared source DTOs and PostgreSQL document/graph persistence through Store.save_document_graph.
 
 ## Try it
 
@@ -35,8 +35,8 @@ falls back to the same local source, never to the global catalog or outside mate
 4. `source_learning.py` converts usable prerequisites into the adaptive policy context. Source
    provenance and inferred status remain visible in the resulting activity reasons.
 
-B owns extraction/validation/learning decisions. C later persists documents, citations, graph
-versions and learner-scoped records. A later provides upload/consent, goal clarification, source
+B owns extraction/validation/learning decisions. C persists documents, citations, graph
+versions and learner-scoped records through the shared storage boundary. A later provides upload/consent, goal clarification, source
 navigation and uncertainty display. There is no new schema, global concept insert or fixture route.
 
 ## What counts as supported
@@ -106,8 +106,7 @@ supported deterministic grader. General generated-question evaluation is a separ
 
 ## Remaining integration decisions
 
-- C: document/learner scope, persistence/retention/deletion, version replacement and cross-document
-  concept identity. Equal labels in different sources are not silently merged.
+- C has implemented learner/generation scope, persistence/retention/deletion and immutable version replacement. Cross-document concept identity remains separate; equal labels are not silently merged.
 - A/B: source selection and provider-upload consent, goal confirmation, page/section reader links,
   and clear inferred/held/partial-coverage rendering.
 - B/C: when inferred edges are eligible in production, graph/version commit guards, assessment-item

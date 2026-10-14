@@ -56,6 +56,7 @@ class LogTree:
             self.put(child)
 
     def split(self, key, fanout=8, max_depth=6):
+        before_version = self.get(self.root)["version"]
         leaf = self.get(key)
         if leaf["children"] or leaf["count"] < 2:
             return False
@@ -102,7 +103,7 @@ class LogTree:
             self.put(parent_node)
             self._balance(parent, fanout)
         root = self.get(self.root)
-        root["version"] += 1
+        root["version"] = max(root["version"], before_version) + 1
         self.put(root)
         return True
 

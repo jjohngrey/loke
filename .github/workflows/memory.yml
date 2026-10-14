@@ -1,0 +1,38 @@
+name: PostgreSQL memory guardrails
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: loke_test
+          POSTGRES_USER: loke
+          POSTGRES_PASSWORD: loke
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U loke -d loke_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://loke:loke@127.0.0.1:5432/loke_test
+      LOKE_TEST_DATABASE_URL: postgresql+psycopg://loke:loke@127.0.0.1:5432/loke_test
+      MODEL_MODE: demo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: uv sync --locked
+      - run: npm ci
+      - run: npm run check
+      - run: uv run ruff check .
+      - run: git diff --exit-code -- shared/contracts/generated shared/contracts/src/generated.ts
+      - run: npm run build

@@ -12,9 +12,9 @@ Only the composition root `loke_intelligence/app.py` imports the memory implemen
 
 ## Implemented starter loop
 
-Goal + consent → persistent subject agent → three-step plan → quiz answer → event/state/plan/review commit → unchecked prerequisite → scheduled in-app notification. Text/Markdown notes become reported activity and separate source chunks. SQLite records survive process restart.
+Goal + consent → persistent subject agent → three-step plan → quiz answer → event/state/plan/review commit → unchecked prerequisite → scheduled in-app notification. Text/Markdown notes become reported activity and separate source chunks. PostgreSQL records survive process restart. Layer C now supplies generation guards, tiered chat/category memory, bounded retrieval and durable maintenance; see MEMORY_OPERATIONS.md.
 
-This is a scaffold with a small working deterministic loop, not the complete MVP. Live OpenRouter and OpenAI audio adapters are included but paid calls were not exercised. PostgreSQL is configured but requires running Docker. Native Electron startup is separately verified where the host supports it.
+This is a scaffold with a small working deterministic loop, not the complete MVP. Live OpenRouter and OpenAI audio adapters are included but paid calls were not exercised. PostgreSQL 17 memory behavior is verified; run Docker Compose or a local PostgreSQL server. Native Electron startup is separately verified where the host supports it.
 
 ## Integration checkpoints
 
@@ -30,7 +30,7 @@ B coordinates full-loop integration. C reserves three hours for A/B integration 
 - Active quiz begin/complete/cancel and scheduler suppression.
 - Snooze/read/dismiss reminders and retention-friendly notification cleanup.
 - Plan completion and explicit source citations in live model replies.
-- Database versioned migrations, foreign keys, job leases and projection replay.
+- Further B/A adoption of typed lifecycle contracts and graph/category execution; C now provides migrations, scoped foreign keys, maintenance leases and explicit projection replay.
 - Better prerequisite coverage and per-session assisted-answer boundaries.
 - Audio duration/type validation and record/unmount cancellation.
 - Packaged desktop distribution, optional OS notification and secondary channels.

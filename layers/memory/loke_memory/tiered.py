@@ -5,7 +5,14 @@ import math
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from loke_contracts.memory import AgentMatch, ChatScope, ConflictError, MemoryContext, MemoryExcerpt
+from loke_contracts.memory import (
+    AgentMatch,
+    ChatScope,
+    ConflictError,
+    MemoryContext,
+    MemoryExcerpt,
+    OperationalAction,
+)
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import Integer, any_, cast, func, insert, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -45,7 +52,7 @@ def identity(*parts):
 
 def _excerpt(row, kind):
     data = row["data"]
-    return MemoryExcerpt(record_id=row["key"], agent_id=data.get("agent_id"),
+    return MemoryExcerpt(role=data.get("role"), action_status=data.get("action", {}).get("status"), record_id=row["key"], agent_id=data.get("agent_id"),
         chat_id=row["chat_id"], kind=kind, text=data["text"],
         observed_at=data["observed_at"], reference_ids=[row["key"]] if kind == "summary" else data.get("reference_ids", []))
 
@@ -70,9 +77,9 @@ class TieredMemory:
                 key=key, subject=category, data=dict(subject_key=category, prompt_version="memory-v1")))
             return key
 
-    def _message(self, conn, learner, generation, scope, request, role, text, references):
+    def _message(self, conn, learner, generation, scope, request, role, text, references, operation):
         key = identity(scope.chat_id, request, role)
-        value = dict(role=role, text=text, scope=scope.model_dump(), reference_ids=references)
+        value = dict(role=role, text=text, scope=scope.model_dump(), reference_ids=references, operation=operation)
         previous = conn.execute(select(db.messages.c.data).where(db.messages.c.learner_id == learner,
             db.messages.c.key == key)).scalar_one_or_none()
         if previous:
@@ -87,7 +94,8 @@ class TieredMemory:
         return key
 
     def _log(self, conn, learner, generation, root_id, action_id, scope, text, references, action):
-        if len(text) > 16000 or len(references) > 100:
+        action = OperationalAction.model_validate(action).model_dump(mode="json")
+        if len(text) > 32000 or len(references) > 100:
             raise ValueError("Operational log payload exceeds its bounds.")
         root = conn.execute(select(base.agents.c.key).where(base.agents.c.learner_id == learner,
             base.agents.c.generation_id == generation, base.agents.c.key == root_id)).first()
@@ -140,15 +148,10 @@ class TieredMemory:
                                      response, root_id, references or [], action or {})
 
     def _record_turn(self, conn, learner, generation, request, scope, user_text, response, root, references, action):
-        user = self._message(conn, learner, generation, scope, request, "user", user_text, references)
-        assistant = self._message(conn, learner, generation, scope, request, "assistant", response, references)
+        user = self._message(conn, learner, generation, scope, request, "user", user_text, references, action.get("operation", "action"))
+        assistant = self._message(conn, learner, generation, scope, request, "assistant", response, references, action.get("operation", "action"))
         record = self._log(conn, learner, generation, root, request, scope,
                            user_text + "\n" + response, references + [user, assistant], action)
-        # A deduplicated cron bucket runs at most once per 15-minute interval.
-        bucket = int(datetime.now(UTC).timestamp()) // 900
-        conn.execute(pg_insert(base.jobs).values(learner_id=learner, generation_id=generation,
-            key=f"memory:{bucket}", kind="memory", status="pending", due_at=datetime.now(UTC),
-            attempts=0, data={}).on_conflict_do_nothing())
         return dict(user=user, assistant=assistant, log=record)
 
     def search_agents(self, learner_id, generation_id, query, scope: ChatScope, limit=3):
@@ -172,9 +175,10 @@ class TieredMemory:
                 .join(db.assignments, (db.logs.c.learner_id == db.assignments.c.learner_id) &
                                       (db.logs.c.key == db.assignments.c.key))
                 .where(db.logs.c.learner_id == learner_id, db.logs.c.generation_id == generation, eligible)
-                .order_by(score.desc(), db.logs.c.observed_at.desc(), db.logs.c.key).limit(50)).mappings())
+                .order_by(score.desc(), db.logs.c.observed_at.desc(), db.logs.c.key).limit(51)).mappings())
             matches = {}
-            for row in rows:
+            candidate_truncated = len(rows) > 50
+            for row in rows[:50]:
                 node = row["node_id"]
                 if node not in matches and len(matches) >= limit:
                     continue
@@ -191,7 +195,7 @@ class TieredMemory:
                     if set(scope.folder_path) & set(row["folder_path"]):
                         reasons.append("folder_hint")
                     matches[node] = AgentMatch(agent_id=node, root_id=row["root_id"], score=row["score"],
-                                               record_ids=[], reasons=reasons)
+                                               record_ids=[], reasons=reasons, candidate_scan_truncated=candidate_truncated)
                 if len(matches[node].record_ids) < 3:
                     matches[node].record_ids.append(row["key"])
             return list(matches.values())
@@ -212,7 +216,12 @@ class TieredMemory:
             logs = list(conn.execute(select(db.logs).where(db.logs.c.learner_id == learner_id,
                 db.logs.c.key.in_(ids)).order_by(db.logs.c.observed_at.desc(), db.logs.c.key)).mappings())
             result = MemoryContext(generation_id=generation_id, matches=matches,
-                truncated=len(recent) > self.limits.recent_messages or len(summaries) > 8)
+                truncated=len(recent) > self.limits.recent_messages or len(summaries) > 8
+                    or any(m.candidate_scan_truncated for m in matches)
+                    or any(r["data"].get("truncated", False) for r in summaries))
+            result.maintenance_saturated = bool(conn.execute(select(db.nodes.c.key).where(
+                db.nodes.c.learner_id == learner_id, db.nodes.c.parent_id.is_(None),
+                db.nodes.c.data["saturated"].as_boolean().is_(True)).limit(1)).first())
             budget = self.limits.context_tokens - estimate(result.model_dump_json()) - 100
             # Recent chat first, selected category logs next, summaries last. Output records carry citations.
             groups = ((recent[:self.limits.recent_messages], "interaction", result.recent),
@@ -290,10 +299,16 @@ class TieredMemory:
             references = [r["key"] for r in covered]
             entries = [dict(role=r["data"]["role"], observed_at=r["data"]["observed_at"],
                             text=r["data"]["text"][:240], record_id=r["key"],
-                            reference_ids=r["data"]["reference_ids"]) for r in covered]
-            text = "\n".join(f"{e['observed_at']} {e['role']}: {e['text']}" for e in entries)
+                            reference_ids=r["data"]["reference_ids"], operation=r["data"].get("operation", "unknown"),
+                            truncated=len(r["data"]["text"]) > 240) for r in covered]
+            goals = [e for e in entries if e["role"] == "user" and e["operation"] == "goal"]
+            explicit = [e for e in entries if e["role"] == "user" and
+                        any(term in e["text"].lower() for term in ("i prefer", "my goal", "i want", "i need"))]
+            anchors = "\n".join(f"{e['observed_at']} explicit user statement [{e['record_id']}]: {e['text']}"
+                                for e in goals + explicit)
+            text = anchors + "\n" + "\n".join(f"{e['observed_at']} {e['role']}: {e['text']}" for e in entries)
             self._summary(conn, learner, generation, chat, 0, covered[0]["sequence"],
-                          covered[-1]["sequence"], text[:6000], references, entries)
+                          covered[-1]["sequence"], text, references, entries)
         for tier in range(self.limits.max_depth):
             old = list(conn.execute(select(db.summaries).where(db.summaries.c.learner_id == learner,
                 db.summaries.c.chat_id == chat, db.summaries.c.tier == tier, db.summaries.c.active == 1)
@@ -304,18 +319,20 @@ class TieredMemory:
             references = [r["key"] for r in children]
             text = "\n".join(r["data"]["text"][:600] for r in children)
             self._summary(conn, learner, generation, chat, tier + 1, children[0]["start_sequence"],
-                          children[-1]["end_sequence"], text[:6000], references, [])
+                          children[-1]["end_sequence"], text, references, [])
             conn.execute(update(db.summaries).where(db.summaries.c.learner_id == learner,
                 db.summaries.c.key.in_(references)).values(active=0))
 
     @staticmethod
     def _summary(conn, learner, generation, chat, tier, start, end, text, references, entries):
         key = identity(chat, tier, start, end)
-        value = dict(text=text, observed_at=datetime.now(UTC).isoformat(), reference_ids=references,
+        value = dict(text=text[:6000], truncated=len(text) > 6000 or any(e.get("truncated") for e in entries), observed_at=datetime.now(UTC).isoformat(), reference_ids=references,
             entries=entries, generator="extractive-v1", token_estimator="utf8-bytes-v1",
             source_fingerprint=identity(references), start_sequence=start, end_sequence=end,
-            goals_preferences="See cited original messages; no semantic inference performed.",
-            unresolved_questions="Not inferred by the offline extractive summarizer.")
+            goals_preferences=[e for e in entries if e["role"] == "user" and (e.get("operation") == "goal" or
+                any(term in e["text"].lower() for term in ("i prefer", "my goal", "i want", "i need")))],
+            question_refs=[e["record_id"] for e in entries if e["role"] == "user" and "?" in e["text"]],
+            completion_status="Only committed responses are logged; question resolution is not inferred.")
         conn.execute(pg_insert(db.summaries).values(learner_id=learner, generation_id=generation,
             key=key, chat_id=chat, tier=tier, start_sequence=start, end_sequence=end, active=1,
             data=value).on_conflict_do_nothing())

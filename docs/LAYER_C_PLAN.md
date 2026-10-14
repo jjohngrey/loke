@@ -1,6 +1,6 @@
 # Layer C implementation plan
 
-Status: approved for implementation, including the additions below. Repository: /Users/johngrey/loke. Scope: memory storage, retrieval, graph persistence, atomic commits, durable jobs and cleanup. No implementation changes have been made.
+Status: implemented across four stacked PRs. See the memory README and MEMORY_OPERATIONS.md for shipped behavior and limits. Repository: /Users/johngrey/loke. Scope: memory storage, retrieval, graph persistence, atomic commits, durable jobs and cleanup. Implementation and verification are recorded in the final handoff.
 
 ## Baseline and boundaries
 
@@ -146,3 +146,5 @@ An agent-log row records chat provenance; conversation summarization is scoped t
 PRs are stacked and reviewed/merged in order, each targeting its predecessor. Do not merge automatically. Each contains its own relevant tests; final integration runs the whole suite. Preserve teaching policy and current UI behavior. Avoid new services, generic agent frameworks, embeddings and paid background calls. If a slice cannot meet its acceptance tests, keep it draft and identify the exact failure. No hidden catch-and-ignore for migration errors, stale writes or lost records. Limit tree fanout/depth, context, cache, maintenance batches and retry counts through validated configuration.
 
 Implementation simplification: offline summaries are extractive excerpts with dates and original references. They do not claim semantic preservation of every preference/task; a future B summarizer may supply richer structured fields. B+ tree splits use bounded SQL updates inside the existing learner transaction, avoiding a second snapshot-publication protocol. Child memory nodes are persistent routing identities, not provider agents.
+
+Verified final slice: PostgreSQL 17, 148 offline tests, generated-contract/typecheck checks, ruff and production frontend build passed. In-app review dispatch uses a single guarded transaction; leases are reserved for maintenance jobs because no external delivery happens. Expired content is removed at the access boundary as well as hourly cleanup. UI clients can adopt optional chat/version envelopes without a UI redesign in C.
