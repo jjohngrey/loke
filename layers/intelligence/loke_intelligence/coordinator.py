@@ -31,6 +31,9 @@ def fingerprint(payload) -> str:
 
 def legacy_fingerprint(payload):
     """Only used for the bounded retry window when upgrading original scaffold outcomes."""
+    if payload.scope != ChatScope() or any(getattr(payload, name, None) is not None
+                                          for name in ("generation_id", "expected_state_revision", "expected_plan_revision")):
+        return None
     value = payload.model_dump(mode="json", exclude={"scope", "generation_id", "expected_state_revision", "expected_plan_revision"})
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
 

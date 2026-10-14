@@ -115,10 +115,13 @@ class Store(TieredMemory):
 
     def _replay(self, conn, learner, generation, key, fingerprint, legacy_fingerprint):
         cached = self._outcome(conn, learner, generation, key, fingerprint)
-        if cached is not None or legacy_fingerprint is None:
+        if cached is not None:
             return cached
-        request = key.split(":", 1)[1]
-        return self._outcome(conn, learner, generation, "legacy:" + request, legacy_fingerprint)
+        legacy_key = "legacy:" + key.split(":", 1)[1]
+        if legacy_key == key:
+            return None
+        return self._outcome(conn, learner, generation, legacy_key,
+                             fingerprint if legacy_fingerprint is None else legacy_fingerprint)
 
     def lookup_outcome(self, learner_id, request_id, fingerprint, generation_id, operation="legacy", legacy_fingerprint=None):
         with self.engine.begin() as conn:

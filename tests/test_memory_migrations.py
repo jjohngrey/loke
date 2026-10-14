@@ -85,6 +85,10 @@ def test_legacy_request_outcome_replays_without_duplicate_goal(pg_url):
     assert replay.response == "Legacy committed response"
     assert replay.agent_id == "legacy-agent"
     assert store.snapshot("one")["state_revision"] == 1
+    from loke_contracts.memory import ChatScope, ConflictError
+    changed = payload.model_copy(update={"scope": ChatScope(chat_id="different-chat")})
+    with pytest.raises(ConflictError, match="different content"):
+        Coordinator(store).goal("one", changed)
     store.engine.dispose()
     engine.dispose()
 
