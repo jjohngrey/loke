@@ -14,6 +14,7 @@ class FakeConflictError(ValueError):
 
 class FakeMemory(MemoryPort):
     def __init__(self):
+        self.generations = {}
         self.records: dict[str, dict[str, Any]] = {}
         self.outcomes: dict[tuple[str, str], tuple[str, dict[str, Any]]] = {}
 
@@ -21,11 +22,14 @@ class FakeMemory(MemoryPort):
         return list(self.records)
 
     def snapshot(self, learner_id: str) -> dict[str, Any]:
+        self.generations.setdefault(learner_id, "generation-initial")
         return deepcopy(
             self.records.get(
                 learner_id,
                 dict(
                     goal="",
+                    generation_id=self.generations[learner_id],
+                    graph_version=None,
                     storage_consent=False,
                     reminders_enabled=False,
                     study_minutes=10,
@@ -94,6 +98,8 @@ class FakeMemory(MemoryPort):
 
     def delete_learner(self, learner_id: str) -> None:
         self.records.pop(learner_id, None)
+        from uuid import uuid4
+        self.generations[learner_id] = str(uuid4())
         self.outcomes = {key: value for key, value in self.outcomes.items() if key[0] != learner_id}
 
     def expire(self) -> None:

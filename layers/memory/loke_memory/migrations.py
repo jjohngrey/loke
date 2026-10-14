@@ -5,9 +5,10 @@ from uuid import uuid4
 from sqlalchemy import MetaData, Table, delete, insert, inspect, select, text
 
 from . import tables as db
+from . import tiered_tables  # noqa: F401
 from .retrieval import tokens
 
-VERSION = 2
+VERSION = 3
 
 
 def migrate(engine):

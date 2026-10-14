@@ -25,6 +25,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from . import tables as db
 from .migrations import migrate
 from .retrieval import tokens
+from .tiered import TieredMemory
 
 __all__ = ["ConflictError", "Store"]
 
@@ -36,7 +37,7 @@ def utc(value):
     return result.astimezone(UTC)
 
 
-class Store:
+class Store(TieredMemory):
     def __init__(self, url: str):
         self.engine = create_engine(url, pool_pre_ping=True)
         migrate(self.engine)
