@@ -1,764 +1,798 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { LearningView } from "@loke/contracts";
 
-function Icon({ name }: { name: string }) {
-  const paths: Record<string, React.ReactNode> = {
-    today: (
+import dynamic from "next/dynamic";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
+
+const Seasons = dynamic(() => import("anatomy-figures/seasons"), {
+  ssr: false,
+});
+
+function SeasonsEmptyState() {
+  const figureRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = figureRef.current;
+    if (!container) return;
+
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync('[data-corner="title"], [data-corner="hint"] { display: none; }');
+    let shadowRoot: ShadowRoot | null = null;
+    let frame = 0;
+
+    const attachSheet = () => {
+      frame = 0;
+      const nextRoot = container.querySelector("[data-anatomy-figure]")?.shadowRoot;
+      if (!nextRoot) {
+        frame = requestAnimationFrame(attachSheet);
+        return;
+      }
+      if (nextRoot === shadowRoot) return;
+      if (shadowRoot) {
+        shadowRoot.adoptedStyleSheets = shadowRoot.adoptedStyleSheets.filter(
+          (item) => item !== sheet,
+        );
+      }
+      nextRoot.adoptedStyleSheets = [...nextRoot.adoptedStyleSheets, sheet];
+      shadowRoot = nextRoot;
+    };
+
+    const observer = new MutationObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(attachSheet);
+    });
+    observer.observe(container, { childList: true, subtree: true });
+    attachSheet();
+
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+      if (shadowRoot) {
+        shadowRoot.adoptedStyleSheets = shadowRoot.adoptedStyleSheets.filter(
+          (item) => item !== sheet,
+        );
+      }
+    };
+  }, []);
+
+  return (
+    <section className="seasons-empty" aria-labelledby="seasons-question">
+      <h1 className="sr-only" id="seasons-question">
+        Explore why Earth has seasons
+      </h1>
+      <div className="seasons-figure" ref={figureRef}>
+        <Seasons theme="light" fig="" />
+      </div>
+    </section>
+  );
+}
+
+type IconName =
+  | "sidebar"
+  | "compose"
+  | "search"
+  | "folder"
+  | "chevron"
+  | "home"
+  | "book"
+  | "clock"
+  | "plus"
+  | "mic"
+  | "voice"
+  | "send"
+  | "settings"
+  | "logout"
+  | "close"
+  | "spark"
+  | "check";
+
+function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
+  const paths: Record<IconName, ReactNode> = {
+    sidebar: (
       <>
-        <rect x="4" y="5" width="16" height="15" rx="3" />
-        <path d="M8 3v4m8-4v4M4 10h16m-11 5h6" />
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M9 4v16" />
       </>
     ),
-    study: (
+    compose: (
       <>
-        <path d="M4 5h6a3 3 0 0 1 3 3v12a4 4 0 0 0-4-3H4zm16 0h-4a3 3 0 0 0-3 3v12a4 4 0 0 1 4-3h3z" />
+        <path d="M12 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" />
+        <path d="m16 4 4 4-9 9-4 1 1-4z" />
       </>
     ),
-    concepts: (
+    search: (
       <>
-        <circle cx="6" cy="7" r="3" />
-        <circle cx="18" cy="8" r="3" />
-        <circle cx="12" cy="18" r="3" />
-        <path d="m8 9 2 6m5-4-2 4M9 7h6" />
+        <circle cx="10.8" cy="10.8" r="6.8" />
+        <path d="m16 16 4.5 4.5" />
       </>
     ),
-    arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
+    folder: (
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    ),
+    chevron: <path d="m9 6 6 6-6 6" />,
+    home: (
+      <>
+        <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" />
+        <path d="M9 21v-7h6v7" />
+      </>
+    ),
+    book: (
+      <>
+        <path d="M4 4.5h6a3 3 0 0 1 3 3V20a4 4 0 0 0-4-3H4z" />
+        <path d="M20 4.5h-4a3 3 0 0 0-3 3V20a4 4 0 0 1 4-3h3z" />
+      </>
+    ),
+    clock: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </>
+    ),
+    plus: <path d="M12 4v16M4 12h16" />,
     mic: (
       <>
         <rect x="9" y="3" width="6" height="12" rx="3" />
         <path d="M6 10v2a6 6 0 0 0 12 0v-2m-6 8v3m-4 0h8" />
       </>
     ),
-    attach: (
-      <path d="m9 17 8-8a3 3 0 0 0-4-4L5 13a5 5 0 0 0 7 7l8-8M8 14l6-6" />
+    voice: <path d="M5 10v4m4-7v10m4-13v16m4-10v4" />,
+    send: <path d="M12 19V5m-6 6 6-6 6 6" />,
+    settings: (
+      <>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l-1.7 1.7a1.6 1.6 0 0 0-1.8-.3 8 8 0 0 1-1.4.6L14.2 21h-2.4l-.6-2.2a8 8 0 0 1-1.4-.6 1.6 1.6 0 0 0-1.8.3l-1.7-1.7a1.6 1.6 0 0 0 .3-1.8 8 8 0 0 1-.6-1.4L3.8 13v-2.4L6 10a8 8 0 0 1 .6-1.4 1.6 1.6 0 0 0-.3-1.8L8 5.1a1.6 1.6 0 0 0 1.8.3 8 8 0 0 1 1.4-.6l.6-2.2h2.4l.6 2.2a8 8 0 0 1 1.4.6 1.6 1.6 0 0 0 1.8-.3l1.7 1.7a1.6 1.6 0 0 0-.3 1.8 8 8 0 0 1 .6 1.4l2.2.6V13l-2.2.6a8 8 0 0 1-.6 1.4z" />
+      </>
     ),
-    check: <path d="m5 12 4 4 10-10" />,
+    logout: (
+      <>
+        <path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" />
+        <path d="M13 8l4 4-4 4m4-4H8" />
+      </>
+    ),
+    close: <path d="M5 5l14 14M19 5 5 19" />,
+    spark: (
+      <>
+        <path d="m12 2 1.9 7.1L21 11l-7.1 1.9L12 20l-1.9-7.1L3 11l7.1-1.9z" />
+        <path d="m19 17 .6 2.4L22 20l-2.4.6L19 23l-.6-2.4L16 20l2.4-.6z" />
+      </>
+    ),
+    check: <path d="m5 12 4 4L19 6" />,
   };
   return (
     <svg
       aria-hidden="true"
-      width="20"
-      height="20"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.6"
+      strokeWidth="1.7"
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      {paths[name] || paths.arrow}
+      {paths[name]}
     </svg>
   );
 }
 
-async function api<T>(
-  path: string,
-  body?: unknown,
-  method = body ? "POST" : "GET",
-): Promise<T> {
-  const response = await fetch(`/api/backend/${path}`, {
-    method,
-    headers: body ? { "content-type": "application/json" } : {},
-    body: body ? JSON.stringify(body) : undefined,
-    cache: "no-store",
-  });
-  const result = await response.json();
-  if (!response.ok)
-    throw new Error(result.detail || "The learning request failed.");
-  return result;
-}
+type Message = { id: string; role: "user" | "loke"; text: string };
+type Chat = {
+  id: string;
+  title: string;
+  folderId?: string;
+  messages: Message[];
+};
+type Folder = { id: string; name: string };
+type Section = "chats" | "study" | "activity";
+
+const initialFolders: Folder[] = [
+  { id: "neuroscience", name: "Neuroscience" },
+  { id: "study-plans", name: "Study plans" },
+];
+
+const initialChats: Chat[] = [
+  {
+    id: "neural-signaling",
+    title: "Understanding neural signaling",
+    folderId: "neuroscience",
+    messages: [
+      {
+        id: "a",
+        role: "user",
+        text: "Help me understand how neurons release neurotransmitters.",
+      },
+      {
+        id: "b",
+        role: "loke",
+        text: "Let's start with the signal that reaches the end of a neuron. An action potential travels along the axon and triggers the next steps at the synapse.",
+      },
+    ],
+  },
+  {
+    id: "action-potentials",
+    title: "How action potentials work",
+    folderId: "neuroscience",
+    messages: [
+      {
+        id: "a",
+        role: "user",
+        text: "What makes an action potential move along an axon?",
+      },
+      {
+        id: "b",
+        role: "loke",
+        text: "A change in voltage opens nearby sodium channels. That change triggers the next section of membrane, so the signal travels along the axon.",
+      },
+    ],
+  },
+  {
+    id: "synapses",
+    title: "What happens at a synapse?",
+    folderId: "neuroscience",
+    messages: [],
+  },
+  {
+    id: "review-plan",
+    title: "A ten-minute review plan",
+    folderId: "study-plans",
+    messages: [],
+  },
+  {
+    id: "prerequisites",
+    title: "Which concept should I review?",
+    messages: [],
+  },
+];
+
+const railItems: { id: Section; label: string; icon: IconName }[] = [
+  { id: "chats", label: "Chats", icon: "home" },
+  { id: "study", label: "Study", icon: "book" },
+  { id: "activity", label: "Activity", icon: "clock" },
+];
 
 export default function Workspace() {
-  const [view, setView] = useState<LearningView | null>(null);
-  const latest = useRef<LearningView | null>(null);
-  const [tab, setTab] = useState("Today");
-  const [goal, setGoal] = useState(
-    "Understand how neurons release neurotransmitters",
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [section, setSection] = useState<Section>("chats");
+  const [chats, setChats] = useState<Chat[]>(initialChats);
+  const [folders, setFolders] = useState<Folder[]>(initialFolders);
+  const [expandedFolders, setExpandedFolders] = useState<
+    Record<string, boolean>
+  >({ neuroscience: true, "study-plans": true });
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [addingFolder, setAddingFolder] = useState(false);
+  const [folderName, setFolderName] = useState("");
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [dialog, setDialog] = useState<"settings" | "logout" | null>(null);
+  const [profileName, setProfileName] = useState("Learner");
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const activeChat = chats.find((chat) => chat.id === activeChatId);
+  const matches = (chat: Chat) =>
+    chat.title.toLowerCase().includes(search.trim().toLowerCase());
+  const recent = chats.filter(
+    (chat) => !chat.folderId && matches(chat),
   );
-  const [consent, setConsent] = useState(false);
-  const [audioConsent, setAudioConsent] = useState(false);
-  const [text, setText] = useState("");
-  const [mode, setMode] = useState<"text" | "voice" | "attachment">("text");
-  const [answer, setAnswer] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [recording, setRecording] = useState(false);
-  const recorder = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const update = useCallback((next: LearningView) => {
-    const old = latest.current;
-    if (
-      old &&
-      (next.state_revision < old.state_revision ||
-        next.plan_revision < old.plan_revision)
-    )
-      return;
-    latest.current = next;
-    setView(next);
-  }, []);
+
   useEffect(() => {
-    let active = true;
-    const load = async () => {
-      try {
-        const data = await api<LearningView>("view");
-        if (active) update(data);
-      } catch (e) {
-        if (active && !latest.current) setError((e as Error).message);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        setSidebarOpen((open) => !open);
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen(true);
+        setSidebarOpen(true);
+      }
+      if (event.key === "Escape") {
+        setProfileOpen(false);
+        setDialog(null);
+        setSearchOpen(false);
       }
     };
-    load();
-    const timer = setInterval(load, 2000);
+    const onPointerDown = (event: PointerEvent) => {
+      if (
+        profileRef.current &&
+        !profileRef.current.contains(event.target as Node)
+      )
+        setProfileOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("pointerdown", onPointerDown);
     return () => {
-      active = false;
-      clearInterval(timer);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      streamRef.current?.getTracks().forEach((t) => t.stop());
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("pointerdown", onPointerDown);
     };
-  }, [update]);
+  }, []);
+
   useEffect(() => {
-    setAnswer("");
-  }, [view?.active_quiz?.id]);
-  async function act(path: string, body?: unknown, method?: string) {
-    setBusy(true);
-    setError("");
-    try {
-      const next = await api<LearningView>(path, body, method);
-      update(next);
-      return true;
-    } catch (e) {
-      setError((e as Error).message);
-      return false;
-    } finally {
-      setBusy(false);
-    }
+    messagesEndRef.current?.scrollIntoView({ block: "end" });
+  }, [activeChatId, chats]);
+
+  function selectChat(id: string) {
+    setSection("chats");
+    setActiveChatId(id);
+    setDraft("");
   }
-  async function submitReport(event: React.FormEvent) {
+
+  function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (await act("input", { request_id: crypto.randomUUID(), text, mode })) {
-      setText("");
-      setMode("text");
-    }
-  }
-  async function transcribe(blob: Blob, filename: string) {
-    setBusy(true);
-    setError("");
-    try {
-      const data = new FormData();
-      data.append("file", blob, filename);
-      const response = await fetch("/api/backend/audio/transcribe", {
-        method: "POST",
-        headers: { "audio-consent": "true" },
-        body: data,
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.detail);
-      setText(result.text);
-      setMode("voice");
-      setTab("Study");
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function toggleRecording() {
-    if (recording) {
-      recorder.current?.stop();
-      return;
-    }
-    setError("");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      const instance = new MediaRecorder(stream);
-      recorder.current = instance;
-      const chunks: Blob[] = [];
-      instance.ondataavailable = (event) => chunks.push(event.data);
-      instance.onstop = () => {
-        if (timerRef.current) clearTimeout(timerRef.current);
-        stream.getTracks().forEach((t) => t.stop());
-        setRecording(false);
-        const blob = new Blob(chunks, { type: instance.mimeType });
-        const extension = instance.mimeType.includes("mp4") ? "m4a" : "webm";
-        transcribe(blob, `recording.${extension}`);
-      };
-      instance.start();
-      setRecording(true);
-      timerRef.current = setTimeout(() => instance.stop(), 30000);
-    } catch {
-      setError(
-        "Microphone access was unavailable. You can type your study report instead.",
+    const text = draft.trim();
+    if (!text) return;
+    const message: Message = { id: crypto.randomUUID(), role: "user", text };
+    if (activeChatId) {
+      setChats((items) =>
+        items.map((chat) =>
+          chat.id === activeChatId
+            ? { ...chat, messages: [...chat.messages, message] }
+            : chat,
+        ),
       );
+    } else {
+      const id = crypto.randomUUID();
+      setChats((items) => [
+        {
+          id,
+          title: text.length > 36 ? text.slice(0, 36).trimEnd() + "…" : text,
+          messages: [message],
+        },
+        ...items,
+      ]);
+      setActiveChatId(id);
     }
+    setDraft("");
   }
-  async function attachment(file?: File) {
-    if (!file) return;
-    if (file.size > 1_000_000) {
-      setError("Use an attachment under 1 MB.");
-      return;
-    }
-    if (/\.(md|txt)$/i.test(file.name)) {
-      const content = await file.text();
-      if (content.length > 15000) {
-        setError("Use a note under 15,000 characters.");
-        return;
-      }
-      setText(content);
-      setMode("attachment");
-      setTab("Study");
-    } else if (/\.(mp3|mp4|m4a|wav|webm)$/i.test(file.name)) {
-      if (!audioConsent) {
-        setError("Enable audio processing before attaching audio.");
-        return;
-      }
-      await transcribe(file, file.name);
-    } else
-      setError(
-        "Supported attachments: Markdown, text, MP3, MP4, M4A, WAV or WebM.",
-      );
+
+  function addFolder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = folderName.trim();
+    if (!name) return;
+    const id = crypto.randomUUID();
+    setFolders((items) => [...items, { id, name }]);
+    setExpandedFolders((items) => ({ ...items, [id]: true }));
+    setFolderName("");
+    setAddingFolder(false);
   }
-  const concept = (id: string) => view?.concepts.find((c) => c.id === id);
-  const quiz = view?.active_quiz;
-  const stateLabel: Record<string, string> = {
-    needs_practice: "Needs practice",
-    recent_unassisted_correct: "One recent correct item",
-    attempted: "Attempted",
-    unassessed: "Not checked",
-  };
+
+  function chatButton(chat: Chat, nested = false) {
+    const selected = activeChatId === chat.id && section === "chats";
+    return (
+      <button
+        key={chat.id}
+        className={[
+          "chat-item",
+          nested ? "nested" : "",
+          selected ? "selected" : "",
+        ].join(" ")}
+        onClick={() => selectChat(chat.id)}
+        title={chat.title}
+        aria-current={selected ? "page" : undefined}
+      >
+        <span>{chat.title}</span>
+      </button>
+    );
+  }
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <a href="/" className="brand" aria-label="Loke home">
-          <span className="brand-mark">l</span>
-          <span>loke</span>
-        </a>
-        <div className="workspace-label">YOUR WORKSPACE</div>
-        <nav aria-label="Learning workspace">
-          {["Today", "Study", "Concepts"].map((name) => (
-            <button
-              key={name}
-              className={`nav-item ${tab === name ? "selected" : ""}`}
-              onClick={() => setTab(name)}
-              aria-current={tab === name ? "page" : undefined}
-            >
-              <Icon name={name.toLowerCase()} />
-              {name}
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-bottom">
-          <span className="status-dot" />
-          <span>Personal learning space</span>
-          <p>
-            {view?.agent_id
-              ? "Your history stays connected."
-              : "One goal. A clear next step."}
-          </p>
-        </div>
-      </aside>
-      <main className="main" aria-busy={busy}>
-        <header className="topbar">
-          <span>
-            Neuroscience <span className="breadcrumb">/</span> {tab}
-          </span>
-          <span className="mode-badge">
-            {view?.model_mode === "live" ? "Live explanations" : "Demo mode"}
-          </span>
-        </header>
-        <div className="page-heading">
-          <div className="eyebrow">A LITTLE MORE UNDERSTANDING</div>
-          <h1>
-            {tab === "Concepts"
-              ? "See the connections."
-              : tab === "Study"
-                ? "Make sense of what you studied."
-                : "Your next step, thoughtfully chosen."}
-          </h1>
-          <p>Neural signaling, one useful connection at a time.</p>
-        </div>
-        {error && (
-          <div className="error" role="alert">
-            {error}
+    <div
+      className={[
+        "desktop-shell",
+        sidebarOpen ? "sidebar-open" : "sidebar-closed",
+      ].join(" ")}
+    >
+      <header className="window-bar">
+        <button
+          className="window-sidebar-toggle icon-button"
+          onClick={() => setSidebarOpen((open) => !open)}
+          aria-label={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+          aria-controls="chat-sidebar"
+          aria-expanded={sidebarOpen}
+          title="Toggle sidebar (⌘B)"
+        >
+          <Icon name="sidebar" size={19} />
+        </button>
+        <div className="window-title">Loke</div>
+      </header>
+
+      <div className="app-region">
+        <nav className="icon-rail" aria-label="Workspace">
+          <div className="rail-top">
+            {railItems.map((item) => (
+              <button
+                key={item.id}
+                className={[
+                  "rail-button",
+                  section === item.id ? "selected" : "",
+                ].join(" ")}
+                onClick={() => {
+                  setSection(item.id);
+                  setProfileOpen(false);
+                }}
+                aria-label={item.label}
+                title={item.label}
+                aria-current={section === item.id ? "page" : undefined}
+              >
+                <Icon name={item.icon} size={20} />
+              </button>
+            ))}
           </div>
-        )}
-        <div className="workspace-grid">
-          <div className="primary">
-            {!view?.storage_consent ? (
-              <section className="card goal-card">
-                <div className="card-kicker">START WITH A GOAL</div>
-                <h2>What would you like to understand?</h2>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    act("goal", {
-                      request_id: crypto.randomUUID(),
-                      goal,
-                      storage_consent: consent,
-                      reminders_enabled: true,
-                      study_minutes: 10,
-                    });
+          <div className="profile-anchor" ref={profileRef}>
+            <button
+              className={["profile-button", profileOpen ? "selected" : ""].join(
+                " ",
+              )}
+              onClick={() => setProfileOpen((open) => !open)}
+              aria-label="Open profile menu"
+              aria-haspopup="menu"
+              aria-expanded={profileOpen}
+              title="Profile"
+            >
+              {profileName.slice(0, 1).toUpperCase()}
+            </button>
+            {profileOpen && (
+              <div
+                className="profile-menu"
+                role="menu"
+                aria-label="Profile menu"
+              >
+                <div className="profile-menu-heading">
+                  <span className="profile-menu-avatar">
+                    {profileName.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="profile-menu-name">{profileName}</span>
+                </div>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setDialog("settings");
+                    setProfileOpen(false);
                   }}
                 >
-                  <label htmlFor="goal">Your learning goal</label>
-                  <textarea
-                    id="goal"
-                    value={goal}
-                    onChange={(e) => setGoal(e.target.value)}
-                    required
-                    minLength={3}
-                    maxLength={500}
+                  <Icon name="settings" size={20} />
+                  Settings
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setDialog("logout");
+                    setProfileOpen(false);
+                  }}
+                >
+                  <Icon name="logout" size={20} />
+                  Log out
+                </button>
+              </div>
+            )}
+          </div>
+        </nav>
+
+        <div className="workspace-frame">
+          <aside
+            className="chat-sidebar"
+            id="chat-sidebar"
+            aria-label="Chats and folders"
+            aria-hidden={!sidebarOpen}
+          >
+              <div className="sidebar-topline">
+                <span className="sidebar-brand">
+                  Loke
+                </span>
+                <button
+                  className="icon-button sidebar-search"
+                  onClick={() => setSearchOpen((open) => !open)}
+                  aria-label="Search chats"
+                  title="Search chats (⌘K)"
+                >
+                  <Icon name="search" size={19} />
+                </button>
+              </div>
+              {searchOpen && (
+                <div className="search-field">
+                  <Icon name="search" size={16} />
+                  <input
+                    autoFocus
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search chats"
+                    aria-label="Search chats"
                   />
-                  <label className="checkbox-row">
-                    <input
-                      type="checkbox"
-                      checked={consent}
-                      onChange={(e) => setConsent(e.target.checked)}
-                    />
-                    Save my goal, notes and answers for this seven-day demo.
-                  </label>
-                  <p className="helper">
-                    You can turn reminders off or delete your history at any
-                    time.
-                  </p>
                   <button
-                    className="primary-button"
-                    disabled={busy || !consent}
+                    className="search-close"
+                    onClick={() => {
+                      setSearch("");
+                      setSearchOpen(false);
+                    }}
+                    aria-label="Close search"
                   >
-                    {busy ? "Creating your plan…" : "Create my study plan"}
-                    <Icon name="arrow" />
+                    <Icon name="close" size={14} />
                   </button>
-                </form>
-              </section>
-            ) : (
-              <>
-                <section className="goal-summary">
-                  <span className="card-kicker">YOUR GOAL</span>
-                  <h2>{view.goal}</h2>
-                  <span className="small">
-                    A short plan · About{" "}
-                    {view.plan.reduce(
-                      (total, activity) => total + (activity.minutes ?? 2),
-                      0,
-                    )}{" "}
-                    minutes
-                  </span>
-                </section>
-                {tab === "Concepts" ? (
-                  <section className="card">
-                    <div className="card-kicker">CONNECTED KNOWLEDGE</div>
-                    <h2>A small map of neural signaling</h2>
-                    <p className="helper">
-                      Links describe teaching prerequisites. They do not measure
-                      what you know.
-                    </p>
-                    <div className="concept-list">
-                      {view.concepts.map((c) => (
-                        <article key={c.id}>
-                          <h3>{c.label}</h3>
-                          <span className="state-label">
-                            {
-                              stateLabel[
-                                view.states.find((s) => s.concept_id === c.id)
-                                  ?.status || "unassessed"
-                              ]
-                            }
-                          </span>
-                          <p>
-                            {c.prerequisites.length
-                              ? `Builds on ${c.prerequisites.map((id) => concept(id)?.label).join(", ")}.`
-                              : "A foundational concept."}
-                          </p>
-                          <a
-                            href={c.resource_url}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Read the textbook chapter ↗
-                          </a>
-                        </article>
-                      ))}
-                    </div>
-                  </section>
-                ) : (
-                  <>
-                    <section className="card plan-card">
-                      <div className="card-top">
-                        <div>
-                          <div className="card-kicker">YOUR STUDY PLAN</div>
-                          <h2>A useful sequence</h2>
-                        </div>
-                        <span className="pill">Adapts with your answers</span>
-                      </div>
-                      <ol className="plan-list">
-                        {view.plan.map((activity, i) => (
-                          <li
-                            key={activity.concept_id}
-                            className={i === 0 ? "current" : ""}
-                          >
-                            <span className="step-number">{i + 1}</span>
-                            <div>
-                              <h3>{activity.title}</h3>
-                              <p>
-                                {activity.kind === "diagnostic"
-                                  ? "A quick check"
-                                  : activity.kind === "review"
-                                    ? "Scheduled review"
-                                    : activity.kind === "practice"
-                                      ? "Practice again"
-                                      : "Make the connection"}{" "}
-                                · {activity.minutes} min
-                              </p>
-                            </div>
-                            {i === 0 && (
-                              <span className="next-pill">Up next</span>
-                            )}
-                          </li>
-                        ))}
-                      </ol>
-                    </section>
-                    {view.notifications.length > 0 && (
-                      <section
-                        className="reminder"
-                        aria-label="Review reminders"
-                      >
-                        <div className="reminder-icon">
-                          <Icon name="today" />
-                        </div>
-                        <div>
-                          <h3>{view.notifications.at(-1)?.title}</h3>
-                          <p>
-                            A review is scheduled from your recorded answer.
-                          </p>
-                        </div>
-                      </section>
-                    )}
-                    <section className="card quiz-card">
-                      <div className="card-kicker">
-                        ONE QUESTION, STRONGER EVIDENCE
-                      </div>
-                      <h2>
-                        {quiz?.prompt || "Your next question will appear here."}
-                      </h2>
-                      {quiz && (
-                        <form
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            act("quiz/answer", {
-                              request_id: crypto.randomUUID(),
-                              card_id: quiz.id,
-                              answer,
-                            });
-                          }}
+                </div>
+              )}
+              <div className="sidebar-scroll">
+                <section className="sidebar-section" aria-label="Folders">
+                  <div className="section-heading">
+                    <h2>Folders</h2>
+                    <button
+                      className="section-add"
+                      onClick={() => setAddingFolder(true)}
+                      aria-label="Add folder"
+                      title="Add folder"
+                    >
+                      <Icon name="plus" size={16} />
+                    </button>
+                  </div>
+                  {folders.map((folder) => {
+                    const folderChats = chats.filter(
+                      (chat) =>
+                        chat.folderId === folder.id &&
+                        matches(chat),
+                    );
+                    if (
+                      search &&
+                      !folder.name
+                        .toLowerCase()
+                        .includes(search.toLowerCase()) &&
+                      folderChats.length === 0
+                    )
+                      return null;
+                    return (
+                      <div key={folder.id} className="folder-group">
+                        <button
+                          className="folder-button"
+                          onClick={() =>
+                            setExpandedFolders((items) => ({
+                              ...items,
+                              [folder.id]: !items[folder.id],
+                            }))
+                          }
+                          aria-expanded={!!expandedFolders[folder.id]}
                         >
-                          {quiz.kind === "mcq" ? (
-                            <fieldset>
-                              <legend className="sr-only">
-                                Choose one answer
-                              </legend>
-                              {Object.entries(quiz.options || {}).map(
-                                ([key, label]) => (
-                                  <label
-                                    key={key}
-                                    className={`option ${answer === key ? "option-selected" : ""}`}
-                                  >
-                                    <input
-                                      type="radio"
-                                      name="answer"
-                                      value={key}
-                                      checked={answer === key}
-                                      onChange={() => setAnswer(key)}
-                                    />
-                                    <span className="option-letter">{key}</span>
-                                    <span>{label}</span>
-                                  </label>
-                                ),
-                              )}
-                            </fieldset>
-                          ) : (
-                            <>
-                              <label htmlFor="blank-answer">
-                                Your short answer
-                              </label>
-                              <input
-                                id="blank-answer"
-                                className="text-input"
-                                value={answer}
-                                onChange={(e) => setAnswer(e.target.value)}
-                                placeholder="For example: K+"
-                                autoComplete="off"
-                                required
-                              />
-                            </>
-                          )}
-                          <button
-                            className="primary-button"
-                            disabled={busy || !answer.trim()}
+                          <Icon name="folder" size={19} />
+                          <span>{folder.name}</span>
+                          <span
+                            className={[
+                              "folder-chevron",
+                              expandedFolders[folder.id] ? "expanded" : "",
+                            ].join(" ")}
                           >
-                            Check my answer
-                            <Icon name="arrow" />
-                          </button>
-                        </form>
-                      )}
-                      <div className="feedback" role="status">
-                        {view.response}
+                            <Icon name="chevron" size={14} />
+                          </span>
+                        </button>
+                        {expandedFolders[folder.id] &&
+                          folderChats.map((chat) => chatButton(chat, true))}
                       </div>
-                    </section>
-                    <section className="card report-card">
-                      <div className="card-kicker">
-                        CAPTURE WHAT YOU STUDIED
-                      </div>
-                      <h2>Bring your thoughts into the picture.</h2>
-                      <form onSubmit={submitReport}>
-                        <label htmlFor="study-report">
-                          Study report or question
-                        </label>
-                        <textarea
-                          id="study-report"
-                          placeholder="I studied action potentials, but I'm still unsure about…"
-                          value={text}
-                          onChange={(e) => setText(e.target.value)}
-                          maxLength={15000}
-                          required
-                        />
-                        {mode !== "text" && (
-                          <p className="helper">
-                            {mode === "voice"
-                              ? "Review and edit the transcript before sending."
-                              : "Review your attached note before sending."}
-                          </p>
-                        )}
-                        <div className="report-actions">
-                          <button
-                            type="button"
-                            className={`quiet-button ${recording ? "recording" : ""}`}
-                            onClick={toggleRecording}
-                            disabled={busy || !audioConsent}
-                            aria-pressed={recording}
-                          >
-                            <Icon name="mic" />
-                            {recording ? "Stop recording" : "Record"}
-                          </button>
-                          <button
-                            type="button"
-                            className="quiet-button"
-                            onClick={() => fileRef.current?.click()}
-                            disabled={busy}
-                          >
-                            <Icon name="attach" />
-                            Attach
-                          </button>
-                          <button
-                            className="primary-button"
-                            disabled={busy || !text.trim()}
-                          >
-                            Send report
-                            <Icon name="arrow" />
-                          </button>
-                        </div>
-                        <label className="checkbox-row">
-                          <input
-                            type="checkbox"
-                            checked={audioConsent}
-                            onChange={(e) => setAudioConsent(e.target.checked)}
-                          />
-                          Allow audio to be sent to OpenAI for transcription.
-                          Original audio is not stored.
-                        </label>
-                        <p className="helper">
-                          Recordings stop at 30 seconds. Review the transcript
-                          before it becomes learning history.
-                        </p>
-                      </form>
+                    );
+                  })}
+                  {addingFolder && (
+                    <form className="add-folder-form" onSubmit={addFolder}>
                       <input
-                        className="sr-only"
-                        ref={fileRef}
-                        type="file"
-                        aria-label="Attach study note or audio"
-                        accept=".txt,.md,.mp3,.mp4,.m4a,.wav,.webm"
-                        onChange={(e) => {
-                          attachment(e.target.files?.[0]);
-                          e.target.value = "";
+                        autoFocus
+                        value={folderName}
+                        onChange={(event) => setFolderName(event.target.value)}
+                        placeholder="Folder name"
+                        aria-label="Folder name"
+                        maxLength={40}
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") setAddingFolder(false);
                         }}
                       />
-                    </section>
-                  </>
+                      <button type="submit" aria-label="Save folder">
+                        <Icon name="check" size={16} />
+                      </button>
+                    </form>
+                  )}
+                </section>
+                {recent.length > 0 && (
+                  <section
+                    className="sidebar-section"
+                    aria-label="Recent chats"
+                  >
+                    <h2>Recents</h2>
+                    {recent.map((chat) => chatButton(chat))}
+                  </section>
                 )}
+                {search &&
+                  recent.length === 0 &&
+                  !folders.some((folder) =>
+                    chats.some(
+                      (chat) => chat.folderId === folder.id && matches(chat),
+                    ),
+                  ) && <p className="no-results">No matching chats</p>}
+              </div>
+          </aside>
+
+          <main className="conversation" aria-label="Loke workspace">
+            <div className="conversation-topline">
+              <button
+                className="icon-button mobile-sidebar-toggle"
+                onClick={() => setSidebarOpen((open) => !open)}
+                aria-label="Toggle sidebar"
+              >
+                <Icon name="sidebar" size={19} />
+              </button>
+            </div>
+            {section === "chats" ? (
+              <>
+                <div
+                  className={[
+                    "conversation-body",
+                    activeChat?.messages.length ? "has-messages" : "is-empty",
+                  ].join(" ")}
+                >
+                  {activeChat?.messages.length ? (
+                    <div className="message-list">
+                      {activeChat.messages.map((message) => (
+                        <article
+                          className={["message", message.role].join(" ")}
+                          key={message.id}
+                        >
+                          {message.role === "loke" && (
+                            <div className="message-mark" aria-label="Loke">
+                              <Icon name="spark" size={19} />
+                            </div>
+                          )}
+                          <p>{message.text}</p>
+                        </article>
+                      ))}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  ) : (
+                    <SeasonsEmptyState />
+                  )}
+                </div>
+                <div className="composer-zone">
+                  <form className="composer" onSubmit={sendMessage}>
+                    <label className="sr-only" htmlFor="message-input">
+                      Message Loke
+                    </label>
+                    <textarea
+                      id="message-input"
+                      ref={composerRef}
+                      value={draft}
+                      onChange={(event) => setDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (
+                          event.key === "Enter" &&
+                          !event.shiftKey &&
+                          !event.nativeEvent.isComposing
+                        ) {
+                          event.preventDefault();
+                          event.currentTarget.form?.requestSubmit();
+                        }
+                      }}
+                      placeholder="Ask anything"
+                      rows={2}
+                    />
+                    <div className="composer-actions">
+                      <div className="composer-left">
+                        <button
+                          className="composer-icon"
+                          type="button"
+                          aria-label="Add attachment"
+                          title="Add attachment"
+                        >
+                          <Icon name="plus" size={21} />
+                        </button>
+                        <span className="composer-hint">
+                          Learning workspace
+                        </span>
+                      </div>
+                      <div className="composer-right">
+                        <button
+                          className="composer-icon"
+                          type="button"
+                          aria-label="Voice input"
+                          title="Voice input"
+                        >
+                          <Icon name="mic" size={20} />
+                        </button>
+                        {draft.trim() ? (
+                          <button
+                            className="send-button"
+                            type="submit"
+                            aria-label="Send message"
+                          >
+                            <Icon name="send" size={17} />
+                          </button>
+                        ) : (
+                          <button
+                            className="voice-button"
+                            type="button"
+                            aria-label="Start voice mode"
+                          >
+                            <Icon name="voice" size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </form>
+                </div>
               </>
+            ) : (
+              <div className="section-empty">
+                <div className="empty-mark">
+                  <Icon
+                    name={section === "study" ? "book" : "clock"}
+                    size={30}
+                  />
+                </div>
+                <h1>
+                  {section === "study" ? "Your study space" : "Your activity"}
+                </h1>
+                <p>
+                  {section === "study"
+                    ? "Your learning materials will live here."
+                    : "Your recent learning activity will appear here."}
+                </p>
+              </div>
+            )}
+          </main>
+        </div>
+      </div>
+
+      {dialog && (
+        <div
+          className="dialog-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setDialog(null);
+          }}
+        >
+          <div
+            className="dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dialog-title"
+          >
+            <div className="dialog-header">
+              <h2 id="dialog-title">
+                {dialog === "settings" ? "Settings" : "Log out"}
+              </h2>
+              <button
+                className="icon-button"
+                onClick={() => setDialog(null)}
+                aria-label="Close dialog"
+              >
+                <Icon name="close" size={19} />
+              </button>
+            </div>
+            {dialog === "settings" ? (
+              <div className="dialog-content">
+                <label htmlFor="profile-name">Profile name</label>
+                <input
+                  id="profile-name"
+                  value={profileName}
+                  onChange={(event) => setProfileName(event.target.value)}
+                  maxLength={40}
+                />
+                <p>
+                  Your profile and conversations are local interface
+                  placeholders for now.
+                </p>
+              </div>
+            ) : (
+              <div className="dialog-content">
+                <p>
+                  Account sign-out can be connected when authentication is
+                  added.
+                </p>
+                <button className="dialog-done" onClick={() => setDialog(null)}>
+                  Done
+                </button>
+              </div>
             )}
           </div>
-          <aside className="details-column" aria-label="Learning context">
-            <section className="card why-card">
-              <div className="detail-icon">
-                <Icon name="concepts" />
-              </div>
-              <h2>Why this next?</h2>
-              <p>
-                {view?.plan[0]?.reason ||
-                  "Your goal sets the direction. A short check helps choose a useful place to begin."}
-              </p>
-              <div className="evidence-chip">
-                <span className="status-dot" />
-                {view?.plan[0]?.reason_event_ids.length
-                  ? "Grounded in a recorded answer"
-                  : "A check, not a mastery claim"}
-              </div>
-            </section>
-            <section className="card diagram-card">
-              <div className="card-kicker">THE BIG PICTURE</div>
-              <h2>A connected sequence</h2>
-              <svg
-                viewBox="0 0 240 205"
-                role="img"
-                aria-labelledby="diagram-title"
-              >
-                <title id="diagram-title">
-                  Ionic gradients support action potentials, which lead to
-                  calcium entry and transmitter release.
-                </title>
-                {[
-                  "Ionic gradients",
-                  "Action potentials",
-                  "Calcium entry",
-                  "Transmitter release",
-                ].map((label, i) => (
-                  <g key={label}>
-                    <rect
-                      x="14"
-                      y={10 + i * 49}
-                      width="212"
-                      height="36"
-                      rx="9"
-                      fill={i === 1 ? "#EAF2FF" : "#F5F5F7"}
-                      stroke={i === 1 ? "#D2E2FB" : "#E8E8ED"}
-                    />
-                    <text
-                      x="120"
-                      y={33 + i * 49}
-                      textAnchor="middle"
-                      fill="#344054"
-                      fontSize="12"
-                    >
-                      {label}
-                    </text>
-                    {i < 3 && (
-                      <path
-                        d={`M120 ${46 + i * 49}v12m-3-3 3 3 3-3`}
-                        fill="none"
-                        stroke="#A1A6B0"
-                      />
-                    )}
-                  </g>
-                ))}
-              </svg>
-              <p className="helper">
-                A reviewed teaching sequence, not a learner score.
-              </p>
-            </section>
-            <section className="card">
-              <div className="card-kicker">EXPLORE A LITTLE FURTHER</div>
-              <h2>From the textbook</h2>
-              <a
-                className="resource-link"
-                href="https://nba.uth.tmc.edu/neuroscience/m/s1/chapter02.html"
-                target="_blank"
-                rel="noreferrer"
-              >
-                <span>Ionic mechanisms & action potentials</span>
-                <span>↗</span>
-              </a>
-              {view?.sources.map((source) => (
-                <blockquote key={source.source_id}>
-                  <strong>{source.title}</strong>
-                  <p>{source.text.slice(0, 200)}</p>
-                </blockquote>
-              ))}
-            </section>
-            {view?.storage_consent && (
-              <section className="card settings-card">
-                <h2>Your learning history</h2>
-                <p>
-                  {view.events.length} recent events saved. Reports and item
-                  evidence remain distinct.
-                </p>
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={view.reminders_enabled}
-                    onChange={(e) =>
-                      act("reminders", { enabled: e.target.checked })
-                    }
-                    disabled={busy}
-                  />
-                  In-app review reminders
-                </label>
-                <details>
-                  <summary>Demo controls</summary>
-                  <p className="helper">
-                    This visibly advances the test clock. It does not prove
-                    forgetting.
-                  </p>
-                  <button
-                    className="quiet-button"
-                    disabled={busy}
-                    onClick={() => act("demo/clock", { hours: 24 })}
-                  >
-                    Advance review clock +24h
-                  </button>
-                  <p className="small">
-                    Demo clock: +{view.demo_clock_hours} hours
-                  </p>
-                </details>
-                <button
-                  className="delete-button"
-                  disabled={busy}
-                  onClick={async () => {
-                    if (
-                      !confirm(
-                        "Delete this demo learner’s goal, notes, answers and reminders?",
-                      )
-                    )
-                      return;
-                    setBusy(true);
-                    try {
-                      const next = await api<LearningView>(
-                        "learner",
-                        undefined,
-                        "DELETE",
-                      );
-                      latest.current = null;
-                      update(next);
-                      setConsent(false);
-                      setText("");
-                    } catch (e) {
-                      setError((e as Error).message);
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
-                >
-                  Delete learning data
-                </button>
-              </section>
-            )}
-          </aside>
         </div>
-        <footer className="footer">
-          <span>Small steps. Connected understanding.</span>
-          <span role="status">
-            {recording
-              ? "Recording audio…"
-              : busy
-                ? "Saving your learning turn…"
-                : view?.agent_id
-                  ? "Learning history connected"
-                  : "Ready when you are"}
-          </span>
-        </footer>
-      </main>
+      )}
     </div>
   );
 }
