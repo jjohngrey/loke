@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Loke · Design system</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200..800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./tokens.css" />
+    <style>
+      :root { color: var(--color-text); background: var(--color-canvas); font-family: var(--font-sans); }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-size: var(--type-body-size); line-height: var(--type-body-line-height); }
+      main { width: min(100% - 40px, 960px); margin: 0 auto; padding: 48px 0 72px; }
+      h1, h2, h3, h4, h5, h6 { color: var(--color-text); font-family: var(--font-display); font-weight: var(--font-weight-semibold); margin: 0; }
+      h1 { font-size: var(--type-h1-size); line-height: var(--type-h1-line-height); }
+      h2 { font-size: var(--type-h2-size); line-height: var(--type-h2-line-height); }
+      h3 { font-size: var(--type-h3-size); line-height: var(--type-heading-line-height); }
+      h4 { font-size: var(--type-h4-size); line-height: var(--type-heading-line-height); }
+      h5 { font-size: var(--type-h5-size); line-height: var(--type-heading-line-height); }
+      h6 { font-size: var(--type-h6-size); line-height: var(--type-heading-line-height); }
+      p { margin: 0; }
+      .intro { color: var(--color-text-muted); font-size: var(--type-lead-size); max-width: 650px; margin-top: var(--space-4); }
+      .font-families { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-4); }
+      .font-families p { background: var(--color-surface-muted); border: 1px solid var(--color-border); border-radius: var(--radius-pill); color: var(--color-text-muted); font-size: var(--type-caption-size); padding: var(--space-2) var(--space-3); }
+      .font-display { color: var(--color-text); font-family: var(--font-display); }
+      .font-body { color: var(--color-text); font-family: var(--font-sans); }
+      .eyebrow { color: var(--color-text-subtle); font-size: var(--type-caption-size); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-3); }
+      section { border-top: 1px solid var(--color-border); margin-top: var(--space-10); padding-top: var(--space-6); }
+      .section-heading { margin-bottom: var(--space-5); }
+      .section-heading p { color: var(--color-text-muted); margin-top: var(--space-2); }
+      .type-list { display: grid; gap: 0; }
+      .type-row { align-items: baseline; border-bottom: 1px solid var(--color-border); display: grid; gap: var(--space-4); grid-template-columns: 72px minmax(0, 1fr) 150px; padding: var(--space-4) 0; }
+      .type-name, .token-name, .meta { color: var(--color-text-subtle); font-family: var(--font-mono); font-size: var(--type-caption-size); }
+      .type-sample { min-width: 0; overflow-wrap: anywhere; }
+      .type-meta { color: var(--color-text-muted); font-size: var(--type-caption-size); text-align: right; }
+      .body-samples { display: grid; gap: var(--space-5); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .sample-box { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-5); }
+      .sample-box p + p { margin-top: var(--space-3); }
+      .lead { font-size: var(--type-lead-size); line-height: var(--type-body-line-height); }
+      .body-sm { font-size: var(--type-body-sm-size); line-height: var(--type-body-line-height); }
+      .caption { color: var(--color-text-muted); font-size: var(--type-caption-size); }
+      .swatches { display: grid; gap: var(--space-3); grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .swatch { border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
+      .swatch-color { height: 72px; }
+      .swatch-info { padding: var(--space-3); }
+      .swatch-info strong { display: block; font-size: var(--type-body-sm-size); font-weight: var(--font-weight-semibold); }
+      .swatch-info code { color: var(--color-text-subtle); font-family: var(--font-mono); font-size: var(--type-caption-size); }
+      .primitive-grid { display: grid; gap: var(--space-2); grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .primitive { align-items: center; border: 1px solid var(--color-border); border-radius: var(--radius-sm); display: flex; gap: var(--space-2); padding: var(--space-2); }
+      .dot { border-radius: 50%; flex: 0 0 24px; height: 24px; }
+      .footnote { color: var(--color-text-subtle); font-size: var(--type-caption-size); margin-top: var(--space-5); }
+      @media (max-width: 640px) {
+        main { width: min(100% - 32px, 960px); padding-top: 32px; }
+        .type-row { grid-template-columns: 44px minmax(0, 1fr); }
+        .type-meta { display: none; }
+        .body-samples, .swatches { grid-template-columns: 1fr; }
+        .primitive-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">LOKE · DESIGN SYSTEM</p>
+        <h1>Clear ideas, one shared visual language.</h1>
+        <p class="intro">A quick reference for the type and color defaults used by the learning workspace. The samples below read from the same CSS variables as the app.</p>
+        <div class="font-families" aria-label="Typeface assignments">
+          <p>Headings · <strong class="font-display">Helvetica Neue</strong> (Helvetica / Arial fallback)</p>
+          <p>Body text · <strong class="font-body">Plus Jakarta Sans</strong> (system sans fallback)</p>
+        </div>
+      </header>
+
+      <section aria-labelledby="type-heading">
+        <div class="section-heading">
+          <h2 id="type-heading">Heading scale</h2>
+          <p>Semantic HTML headings use these defaults unless a component deliberately adjusts them.</p>
+        </div>
+        <div class="type-list">
+          <div class="type-row"><span class="type-name">h1</span><h1 class="type-sample">A clear place to begin</h1><span class="type-meta">--type-h1-size</span></div>
+          <div class="type-row"><span class="type-name">h2</span><h2 class="type-sample">A useful next step</h2><span class="type-meta">--type-h2-size</span></div>
+          <div class="type-row"><span class="type-name">h3</span><h3 class="type-sample">Build a strong mental model</h3><span class="type-meta">--type-h3-size</span></div>
+          <div class="type-row"><span class="type-name">h4</span><h4 class="type-sample">Follow the signal through the system</h4><span class="type-meta">--type-h4-size</span></div>
+          <div class="type-row"><span class="type-name">h5</span><h5 class="type-sample">Make each connection easier to recall</h5><span class="type-meta">--type-h5-size</span></div>
+          <div class="type-row"><span class="type-name">h6</span><h6 class="type-sample">Small heading for supporting details</h6><span class="type-meta">--type-h6-size</span></div>
+        </div>
+      </section>
+
+      <section aria-labelledby="body-heading">
+        <div class="section-heading">
+          <h2 id="body-heading">Body text</h2>
+          <p>Readable defaults for explanations, notes, and supporting information.</p>
+        </div>
+        <div class="body-samples">
+          <article class="sample-box">
+            <p class="token-name">Lead · --type-lead-size</p>
+            <p class="lead">Learning sticks when each new idea connects to something you already understand.</p>
+          </article>
+          <article class="sample-box">
+            <p class="token-name">Paragraph · --type-body-size</p>
+            <p>Neurons communicate through electrical and chemical signals. A short explanation can introduce the process, then a focused question helps check what made sense.</p>
+          </article>
+          <article class="sample-box">
+            <p class="token-name">Small copy · --type-body-sm-size</p>
+            <p class="body-sm">A supporting note can add context without competing with the main explanation.</p>
+          </article>
+          <article class="sample-box">
+            <p class="token-name">Caption · --type-caption-size</p>
+            <p class="caption">Updated just now · Based on your recent study session</p>
+          </article>
+        </div>
+      </section>
+
+      <section aria-labelledby="color-heading">
+        <div class="section-heading">
+          <h2 id="color-heading">Semantic colors</h2>
+          <p>Use role names in components so the palette can change without rewriting each screen.</p>
+        </div>
+        <div class="swatches">
+          <div class="swatch"><div class="swatch-color" style="background:var(--color-canvas)"></div><div class="swatch-info"><strong>Canvas</strong><code>--color-canvas</code></div></div>
+          <div class="swatch"><div class="swatch-color" style="background:var(--color-text)"></div><div class="swatch-info"><strong>Text</strong><code>--color-text</code></div></div>
+          <div class="swatch"><div class="swatch-color" style="background:var(--color-text-muted)"></div><div class="swatch-info"><strong>Muted text</strong><code>--color-text-muted</code></div></div>
+          <div class="swatch"><div class="swatch-color" style="background:var(--color-action)"></div><div class="swatch-info"><strong>Action</strong><code>--color-action</code></div></div>
+          <div class="swatch"><div class="swatch-color" style="background:var(--color-success-accent)"></div><div class="swatch-info"><strong>Success accent</strong><code>--color-success-accent</code></div></div>
+          <div class="swatch"><div class="swatch-color" style="background:var(--color-warning-accent)"></div><div class="swatch-info"><strong>Warning accent</strong><code>--color-warning-accent</code></div></div>
+        </div>
+      </section>
+
+      <section aria-labelledby="palette-heading">
+        <div class="section-heading">
+          <h2 id="palette-heading">Palette primitives</h2>
+          <p>Base colors stay centralized in the token file and feed the semantic roles above.</p>
+        </div>
+        <div class="primitive-grid">
+          <div class="primitive"><span class="dot" style="background:var(--blue-500)"></span><span class="meta">Blue 500</span></div>
+          <div class="primitive"><span class="dot" style="background:var(--blue-700)"></span><span class="meta">Blue 700</span></div>
+          <div class="primitive"><span class="dot" style="background:var(--green-500)"></span><span class="meta">Green 500</span></div>
+          <div class="primitive"><span class="dot" style="background:var(--yellow-500)"></span><span class="meta">Yellow 500</span></div>
+          <div class="primitive"><span class="dot" style="background:var(--poppy-200)"></span><span class="meta">Poppy 200</span></div>
+          <div class="primitive"><span class="dot" style="background:var(--stone-950)"></span><span class="meta">Stone 950</span></div>
+          <div class="primitive"><span class="dot" style="background:var(--stone-700)"></span><span class="meta">Stone 700</span></div>
+          <div class="primitive"><span class="dot" style="background:var(--stone-200)"></span><span class="meta">Stone 200</span></div>
+        </div>
+        <p class="footnote">Edit styles/tokens.css to update these samples and the application palette and type defaults together.</p>
+      </section>
+    </main>
+  </body>
+</html>

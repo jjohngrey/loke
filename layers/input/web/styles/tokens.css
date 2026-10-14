@@ -1,0 +1,122 @@
+/*
+ * Loke's design source of truth.
+ *
+ * 1. Change the primitive palette or font families here to retheme the app.
+ * 2. Components must use semantic tokens (--color-*, --font-*, --space-*),
+ *    never a raw colour or an ad-hoc font stack.
+ * 3. Add a semantic token when a visual role recurs; do not make a component
+ *    token for a one-off page layout decision.
+ *
+ * Bright meadow uses a white field with sparse blue, green, and yellow accents.
+ * Interactive companions are deliberately deeper than the accent swatches so
+ * foreground/background combinations meet WCAG AA.
+ */
+
+:root {
+  /* Typeface */
+  --font-sans: var(--font-plus-jakarta-sans, "Plus Jakarta Sans"), ui-sans-serif, sans-serif;
+  --font-display: "Helvetica Neue", Helvetica, Arial, ui-sans-serif, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-weight-regular: 400;
+  --font-weight-medium: 540;
+  --font-weight-semibold: 620;
+
+  /* Type scale */
+  --font-size-micro: 0.625rem;
+  --font-size-xs: 0.6875rem;
+  --font-size-sm: 0.75rem;
+  --font-size-body-sm: 0.8125rem;
+  --font-size-body: 0.875rem;
+  --font-size-lead: 0.9375rem;
+  --font-size-heading-sm: 1.125rem;
+  --font-size-heading: 1.25rem;
+  --font-size-display-sm: 1.75rem;
+  --font-size-display: 2.3125rem;
+
+  /* Semantic text styles. Keep heading defaults and body copy in sync. */
+  --type-h1-size: var(--font-size-display);
+  --type-h2-size: var(--font-size-display-sm);
+  --type-h3-size: var(--font-size-heading);
+  --type-h4-size: var(--font-size-heading-sm);
+  --type-h5-size: var(--font-size-lead);
+  --type-h6-size: var(--font-size-body-sm);
+  --type-body-size: var(--font-size-body);
+  --type-body-sm-size: var(--font-size-body-sm);
+  --type-lead-size: var(--font-size-lead);
+  --type-caption-size: var(--font-size-xs);
+  --type-h1-line-height: 1.12;
+  --type-h2-line-height: 1.2;
+  --type-heading-line-height: 1.35;
+  --type-body-line-height: 1.6;
+
+  /* Bright-meadow primitives. Keep these private to this file. */
+  --white: #ffffff;
+  --blue-700: #0a42c9;
+  --blue-500: #0f52fa;
+  --blue-100: #e8efff;
+  --green-800: #16862b;
+  --green-500: #2fe047;
+  --green-100: #e9ffec;
+  --yellow-800: #886500;
+  --yellow-500: #fcd112;
+  --yellow-100: #fff7c7;
+  --poppy-800: #b4432d;
+  --poppy-200: #ffb9a9;
+  --poppy-100: #ffe4dc;
+  --stone-950: #16181d;
+  --stone-700: #4e535d;
+  --stone-600: #69707c;
+  --stone-400: #9ba1ac;
+  --stone-300: #d7dae0;
+  --stone-200: #e8eaee;
+
+  /* Semantic colour roles. Components consume these, not primitives. */
+  --color-canvas: #fbfbfa;
+  --color-sidebar: #fbfbfa;
+  --color-surface: #fbfbfa;
+  --color-surface-muted: var(--white);
+  --color-surface-selected: var(--blue-100);
+  --color-text: var(--stone-950);
+  --color-text-muted: var(--stone-700);
+  --color-text-subtle: var(--stone-600);
+  --color-text-disabled: var(--stone-400);
+  --color-text-inverse: var(--white);
+  --color-border: var(--stone-200);
+  --color-border-strong: var(--stone-300);
+  --color-action: var(--blue-500);
+  --color-action-hover: var(--blue-700);
+  --color-action-subtle: var(--blue-100);
+  --color-focus: var(--blue-500);
+  --color-focus-subtle: rgb(15 82 250 / 18%);
+  --color-success: var(--green-800);
+  --color-success-accent: var(--green-500);
+  --color-success-subtle: var(--green-100);
+  --color-warning: var(--yellow-800);
+  --color-warning-accent: var(--yellow-500);
+  --color-warning-subtle: var(--yellow-100);
+  --color-danger: var(--poppy-800);
+  --color-danger-subtle: var(--poppy-100);
+  --color-danger-border: var(--poppy-200);
+  --color-scrim: rgb(22 24 29 / 28%);
+
+  /* Shared geometry and motion. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.75rem;
+  --radius-pill: 999px;
+  --shadow-none: none;
+  --shadow-raised: 0 6px 24px rgb(22 24 29 / 8%);
+  --shadow-menu: 0 14px 44px rgb(22 24 29 / 12%);
+  --shadow-dialog: 0 20px 60px rgb(22 24 29 / 16%);
+  --shadow-sidebar: 10px 0 25px rgb(22 24 29 / 8%);
+  --transition-fast: 120ms ease;
+}

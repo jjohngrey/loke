@@ -15,7 +15,8 @@ app.whenReady().then(() => {
     minWidth: 900,
     minHeight: 700,
     title: "Loke",
-    backgroundColor: "#F5F5F7",
+    titleBarStyle: "hiddenInset",
+    backgroundColor: "#f2f5f2",
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
