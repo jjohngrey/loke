@@ -8,6 +8,7 @@ from loke_contracts.catalog import CARDS, CONCEPTS
 from loke_contracts.memory import CommitGuard, ConflictError, MemoryTurn
 from loke_contracts.models import (
     AnswerInput,
+    ChatScope,
     ClockAdvance,
     ContextBundle,
     EvidenceEvent,

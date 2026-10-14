@@ -124,3 +124,8 @@ no UI chat/folder CRUD or quiz/notification lifecycle redesign; no live-provider
 compatibility snapshot reads and stored outcomes still contain full retained learning snapshots;
 no cross-document ontology merging; no automatic counterfactual teaching-policy replay for legacy
 or corrected grades. These are explicit integration boundaries, not shipped claims.
+
+Completed request retries skip model calls. Concurrent first attempts across workers may still
+invoke a provider more than once before one guarded learning commit wins; in-flight provider
+call coalescing remains B orchestration work. Settings, clock and review commits also append
+operational logs, and original-record lookup can resolve their notification/evidence references.

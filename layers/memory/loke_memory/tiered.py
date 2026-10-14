@@ -273,7 +273,7 @@ class TieredMemory:
         with self.engine.begin() as conn:
             if self._lock(conn, learner_id) != generation_id:
                 raise ConflictError("Original memory was reset.")
-            for table in (db.messages, db.logs, db.summaries):
+            for table in (db.messages, db.logs, db.summaries, base.events, base.notifications, base.sources, base.objects):
                 row = conn.execute(select(table.c.data).where(table.c.learner_id == learner_id,
                                                               table.c.key == key)).scalar_one_or_none()
                 if row is not None:

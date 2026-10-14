@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
-from loke_contracts.memory import CommitGuard, ConflictError, JobLease, MemoryTurn
+from loke_contracts.memory import ChatScope, CommitGuard, ConflictError, JobLease, MemoryTurn
 from loke_contracts.source import SourceDocument, SourceGraph
 from sqlalchemy import (
     Integer,
@@ -249,6 +249,21 @@ class Store(TieredMemory):
                     self._record_turn(conn, learner_id, generation, f"{operation}:{request_id}", turn.scope,
                         turn.user_text, current["response"], current["agent_id"], references,
                         dict(operation=turn.operation, status="committed", matched_agent_ids=turn.matched_agent_ids))
+                elif operation in {"reminders", "clock", "dispatch"} and current["agent_id"]:
+                    if operation == "reminders":
+                        text = "Reminders enabled." if current["reminders_enabled"] else "Reminders disabled."
+                    elif operation == "clock":
+                        text = f"Demo review clock is now advanced by {current['demo_clock_hours']} hours."
+                    else:
+                        text = "Review job eligibility changed."
+                    refs = []
+                    if len(current["notifications"]) > len(before["notifications"]):
+                        notification = current["notifications"][-1]
+                        text += " In-app notification created: " + notification["title"]
+                        refs = [notification["id"], notification["reason_event_id"]]
+                    self._log(conn, learner_id, generation, current["agent_id"],
+                        f"{operation}:{request_id}", ChatScope(), text, refs,
+                        dict(operation=operation, status="committed"))
             # Nonconsented no-ops must not create learner content or cache rows.
             if current["storage_consent"]:
                 now = datetime.now(UTC)

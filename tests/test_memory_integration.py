@@ -225,3 +225,14 @@ def test_guarded_delete_rejects_old_browser_generation(pg_url, monkeypatch):
                                  headers={"x-loke-session": "test-token"})
         assert response.status_code == 409
         assert app.state.store.snapshot("one")["storage_consent"]
+
+
+def test_settings_and_review_outcomes_are_recallable_operational_history(pg_url):
+    store = Store(pg_url)
+    goal(store)
+    service = Coordinator(store)
+    service.reminders("one", False)
+    generation = store.snapshot("one")["generation_id"]
+    context = store.memory_context("one", generation, "reminders", ChatScope())
+    assert any("Reminders disabled" in entry.text for entry in context.logs)
+    assert store.snapshot("one")["events"] == []
