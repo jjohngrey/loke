@@ -17,6 +17,14 @@ class ActivityProgress(Contract):
     status: Literal["completed", "skipped"]
 
 
+class PrerequisiteMetadata(Contract):
+    edge_id: str
+    prerequisite_id: str
+    dependent_id: str
+    basis: Literal["source_supported", "inferred"]
+    source_ids: list[str] = Field(min_length=1)
+
+
 class LearningContext(Contract):
     goal_concept_ids: list[str] = Field(min_length=1)
     concepts: list[Concept] = Field(min_length=1)
@@ -24,6 +32,9 @@ class LearningContext(Contract):
     events: list[EvidenceEvent] = Field(default_factory=list)
     sources: list[SourceChunk] = Field(default_factory=list, max_length=2)
     progress: list[ActivityProgress] = Field(default_factory=list)
+    prerequisite_metadata: list[PrerequisiteMetadata] = Field(default_factory=list)
+    graph_citation_ids: list[str] = Field(default_factory=list)
+    reading_fallback: bool = False
     study_minutes: int = Field(default=10, ge=1, le=30)
     evaluated_at: datetime
 
@@ -118,11 +129,13 @@ class LearningActivity(Contract):
         "goal_prerequisite",
         "goal_check",
         "goal_explanation",
+        "inferred_prerequisite",
     ]
     reason: str
     reason_event_ids: list[str]
     reason_source_ids: list[str] = Field(default_factory=list)
     prerequisite_path: list[str] = Field(default_factory=list)
+    prerequisite_edge_ids: list[str] = Field(default_factory=list)
     teaching_mode: Literal[
         "independent_recall",
         "clarify_response",

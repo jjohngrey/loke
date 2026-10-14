@@ -13,6 +13,11 @@ interpretation in `semantics.py` and an optional `semantic_openrouter.py` adapte
 [learning-policy design and offline scenarios](../../docs/LEARNING_POLICY.md). This core is not
 yet wired to the HTTP coordinator; the audited application gaps below still describe that app.
 
+Source-scoped graph discovery is now available independently of the catalog: see
+[source-graph pipeline and examples](../../docs/SOURCE_GRAPH_DISCOVERY.md). It preserves exact
+citations and labels inferred prerequisites, with an optional model adapter and offline demo.
+PDF/text upload, graph persistence and the learner UI remain integration work.
+
 ## Files and authority
 
 | Area | Responsibility |
