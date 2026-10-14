@@ -53,6 +53,21 @@ def validate_context(context: LearningContext) -> None:
 
     for cid in concepts:
         visit(cid)
+    metadata_pairs = set()
+    metadata_ids = set()
+    for edge in context.prerequisite_metadata:
+        pair = (edge.dependent_id, edge.prerequisite_id)
+        if pair in metadata_pairs or edge.edge_id in metadata_ids:
+            raise ValueError("Prerequisite metadata must have unique edges.")
+        if (
+            edge.dependent_id not in concepts
+            or edge.prerequisite_id not in concepts[edge.dependent_id].prerequisites
+        ):
+            raise ValueError("Prerequisite metadata must describe a supplied graph edge.")
+        if not set(edge.source_ids) <= set(context.graph_citation_ids):
+            raise ValueError("Prerequisite metadata references unavailable graph citations.")
+        metadata_pairs.add(pair)
+        metadata_ids.add(edge.edge_id)
     if len({e.id for e in context.events}) != len(context.events):
         raise ValueError("Evidence IDs must be unique; deduplicate at the commit boundary.")
     for event in context.events:
@@ -171,6 +186,7 @@ def choose_learning_activities(
                 clarification=interpretation.clarification or "Which concept should we focus on?",
             )
     unavailable = {p.activity_id for p in context.progress}
+    metadata = {(e.dependent_id, e.prerequisite_id): e for e in context.prerequisite_metadata}
     candidates = []
 
     def add(
@@ -185,6 +201,15 @@ def choose_learning_activities(
         preferred_card=None,
         source_ids=None,
     ):
+        path_edges = [
+            metadata[pair] for pair in zip(path or [], (path or [])[1:]) if pair in metadata
+        ]
+        source_ids = sorted(
+            set([*(source_ids or []), *[ref for edge in path_edges for ref in edge.source_ids]])
+        )
+        if any(edge.basis == "inferred" for edge in path_edges):
+            code = "inferred_prerequisite"
+            reason = "This source connection is an inferred learning prerequisite. Explore or check it; it is not an established learner gap."
         pool = [item for item in context.items if item.concept_id == cid]
         # Retry observed misses first; otherwise prefer an item without a graded answer.
         graded_cards = {
@@ -193,6 +218,14 @@ def choose_learning_activities(
         pool.sort(key=lambda item: (item.id != preferred_card, item.id in graded_cards))
         if kind == "learn":
             pool = [None]
+        elif not pool and context.reading_fallback:
+            kind, mode, pool = "learn", "explanation", [None]
+            if code == "inferred_prerequisite":
+                reason += " No authored question is available; explore the cited passage without recording correctness."
+            elif path:
+                reason = f"Read the source prerequisite {concepts[cid].label} on the path to your goal. Reading records participation, not correctness."
+            else:
+                reason = "Read the supplied goal material. No authored question is available, so understanding remains unchecked."
         for item in pool:
             identity = dict(
                 kind=kind,
@@ -234,6 +267,7 @@ def choose_learning_activities(
                         reason_event_ids=ids,
                         reason_source_ids=source_ids or [],
                         prerequisite_path=path or [],
+                        prerequisite_edge_ids=[e.edge_id for e in path_edges],
                         teaching_mode=mode,
                         support_text=item.explanation
                         if item and mode in {"explain_then_check", "guided_practice"}

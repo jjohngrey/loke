@@ -1,0 +1,344 @@
+{
+  "document": {
+    "id": "document:85b3b1e61c4d5b72f4bb4da9",
+    "title": "learning-excerpt.md",
+    "kind": "markdown"
+  },
+  "graph": {
+    "version": "source-graph-v1",
+    "graph_hash": "4d17f6dc04850437e644fef9eac9f2e9ec46d63b2d4d4902ef394a7acbe562fb",
+    "document_id": "document:85b3b1e61c4d5b72f4bb4da9",
+    "content_hash": "85b3b1e61c4d5b72f4bb4da97c9569f31cdde1cc58997e5f458a08df3843ce11",
+    "source_only": true,
+    "status": "ready",
+    "origin": "patterns",
+    "concepts": [
+      {
+        "id": "concept:ebe41b8ff169e123ee7d59b1",
+        "label": "Action potential",
+        "aliases": [
+          "AP"
+        ],
+        "citation_ids": [
+          "citation:147ea8873577a8b4969ae20f",
+          "citation:30e48b537100ccb61550042c",
+          "citation:bbbc50d4ced225f9d0b00c19"
+        ]
+      },
+      {
+        "id": "concept:b380f6034a5b69b105d56f40",
+        "label": "Example learning excerpt",
+        "aliases": [],
+        "citation_ids": [
+          "citation:3c4e3f85ddaa0e62f69d4cc6"
+        ]
+      },
+      {
+        "id": "concept:fc99315198253f848609d27f",
+        "label": "Resting potential",
+        "aliases": [],
+        "citation_ids": [
+          "citation:147ea8873577a8b4969ae20f",
+          "citation:1c86bfd2fad654744a1d622c",
+          "citation:3f1d4ff6a24822761ebb4233"
+        ]
+      },
+      {
+        "id": "concept:2ef0d0c8a08936b139d2e52f",
+        "label": "Transmitter release",
+        "aliases": [],
+        "citation_ids": [
+          "citation:04d77411a01563674b1e472d",
+          "citation:c0601f89cda9e75ae146ed2f",
+          "citation:de9f6a6c058b40ed50a13364"
+        ]
+      }
+    ],
+    "relations": [
+      {
+        "id": "edge:92e66fb3ac860651c498e325",
+        "from_id": "concept:fc99315198253f848609d27f",
+        "to_id": "concept:ebe41b8ff169e123ee7d59b1",
+        "kind": "prerequisite_of",
+        "basis": "source_supported",
+        "origin": "patterns",
+        "citation_ids": [
+          "citation:147ea8873577a8b4969ae20f"
+        ],
+        "usable": true,
+        "held_reason": null
+      },
+      {
+        "id": "edge:972af03186a07421ab5e9ea1",
+        "from_id": "concept:2ef0d0c8a08936b139d2e52f",
+        "to_id": "concept:ebe41b8ff169e123ee7d59b1",
+        "kind": "related_to",
+        "basis": "source_supported",
+        "origin": "patterns",
+        "citation_ids": [
+          "citation:8cf9f669c209864364775ea7"
+        ],
+        "usable": true,
+        "held_reason": null
+      },
+      {
+        "id": "edge:ed08f07aa59fe879e360f140",
+        "from_id": "concept:ebe41b8ff169e123ee7d59b1",
+        "to_id": "concept:2ef0d0c8a08936b139d2e52f",
+        "kind": "prerequisite_of",
+        "basis": "source_supported",
+        "origin": "patterns",
+        "citation_ids": [
+          "citation:c0601f89cda9e75ae146ed2f"
+        ],
+        "usable": true,
+        "held_reason": null
+      }
+    ],
+    "citations": [
+      {
+        "id": "citation:04d77411a01563674b1e472d",
+        "document_id": "document:85b3b1e61c4d5b72f4bb4da9",
+        "passage_id": "document:85b3b1e61c4d5b72f4bb4da9:p1:238:436",
+        "page": 1,
+        "section": "Transmitter release",
+        "start": 238,
+        "end": 260,
+        "quote": "## Transmitter release"
+      },
+      {
+        "id": "citation:147ea8873577a8b4969ae20f",
+        "document_id": "document:85b3b1e61c4d5b72f4bb4da9",
+        "passage_id": "document:85b3b1e61c4d5b72f4bb4da9:p1:109:236",
+        "page": 1,
+        "section": "Action potential",
+        "start": 179,
+        "end": 236,
+        "quote": "Resting potential is a prerequisite for Action potential."
+      },
+      {
+        "id": "citation:1c86bfd2fad654744a1d622c",
+        "document_id": "document:85b3b1e61c4d5b72f4bb4da9",
+        "passage_id": "document:85b3b1e61c4d5b72f4bb4da9:p1:28:107",
+        "page": 1,
+        "section": "Resting potential",
+        "start": 28,
+        "end": 48,
+        "quote": "## Resting potential"
+      },
+      {
+        "id": "citation:30e48b537100ccb61550042c",
+        "document_id": "document:85b3b1e61c4d5b72f4bb4da9",
+        "passage_id": "document:85b3b1e61c4d5b72f4bb4da9:p1:109:236",
+        "page": 1,
+        "section": "Action potential",
+        "start": 109,
+        "end": 128,
+        "quote": "## Action potential"
+      },
+      {
+        "id": "citation:3c4e3f85ddaa0e62f69d4cc6",
+        "document_id": "document:85b3b1e61c4d5b72f4bb4da9",
+        "passage_id": "document:85b3b1e61c4d5b72f4bb4da9:p1:0:26",
+        "page": 1,
+        "section": "Example learning excerpt",
+        "start": 0,
+        "end": 26,
+        "quote": "# Example learning excerpt"
+      },
+      {
+        "id": "citation:3f1d4ff6a24822761ebb4233",
+        "document_id": "document:85b3b1e61c4d5b72f4bb4da9",
+        "passage_id": "document:85b3b1e61c4d5b72f4bb4da9:p1:28:107",
+        "page": 1,
+        "section": "Resting potential",
+        "start": 49,
+        "end": 107,
+        "quote": "Resting potential: the baseline voltage across a membrane."
+      },
+      {
+        "id": "citation:8cf9f669c209864364775ea7",
+        "document_id": "document:85b3b1e61c4d5b72f4bb4da9",
+        "passage_id": "document:85b3b1e61c4d5b72f4bb4da9:p1:238:436",
+        "page": 1,
+        "section": "Transmitter release",
+        "start": 384,
+        "end": 435,
+        "quote": "Action potential is related to Transmitter release."
+      },
+      {
+        "id": "citation:bbbc50d4ced225f9d0b00c19",
+        "document_id": "document:85b3b1e61c4d5b72f4bb4da9",
+        "passage_id": "document:85b3b1e61c4d5b72f4bb4da9:p1:109:236",
+        "page": 1,
+        "section": "Action potential",
+        "start": 129,
+        "end": 178,
+        "quote": "Action potential (AP): a brief electrical signal."
+      },
+      {
+        "id": "citation:c0601f89cda9e75ae146ed2f",
+        "document_id": "document:85b3b1e61c4d5b72f4bb4da9",
+        "passage_id": "document:85b3b1e61c4d5b72f4bb4da9:p1:238:436",
+        "page": 1,
+        "section": "Transmitter release",
+        "start": 318,
+        "end": 383,
+        "quote": "Before studying Transmitter release, understand Action potential."
+      },
+      {
+        "id": "citation:de9f6a6c058b40ed50a13364",
+        "document_id": "document:85b3b1e61c4d5b72f4bb4da9",
+        "passage_id": "document:85b3b1e61c4d5b72f4bb4da9:p1:238:436",
+        "page": 1,
+        "section": "Transmitter release",
+        "start": 261,
+        "end": 317,
+        "quote": "Transmitter release: chemical signaling between neurons."
+      }
+    ],
+    "goal_concept_ids": [
+      "concept:2ef0d0c8a08936b139d2e52f"
+    ],
+    "inspected_passage_ids": [
+      "document:85b3b1e61c4d5b72f4bb4da9:p1:0:26",
+      "document:85b3b1e61c4d5b72f4bb4da9:p1:28:107",
+      "document:85b3b1e61c4d5b72f4bb4da9:p1:109:236",
+      "document:85b3b1e61c4d5b72f4bb4da9:p1:238:436"
+    ],
+    "omitted_passage_ids": [],
+    "clarification": null,
+    "warnings": []
+  },
+  "decision": {
+    "policy_version": "learning-policy-v1",
+    "status": "ready",
+    "evidence": [
+      {
+        "concept_id": "concept:ebe41b8ff169e123ee7d59b1",
+        "status": "unchecked",
+        "evidence_ids": [],
+        "report_ids": [],
+        "latest_event_id": null,
+        "pending_answer_id": null,
+        "next_review_at": null,
+        "review_due": false,
+        "review_card_id": null,
+        "review_reason_event_ids": []
+      },
+      {
+        "concept_id": "concept:b380f6034a5b69b105d56f40",
+        "status": "unchecked",
+        "evidence_ids": [],
+        "report_ids": [],
+        "latest_event_id": null,
+        "pending_answer_id": null,
+        "next_review_at": null,
+        "review_due": false,
+        "review_card_id": null,
+        "review_reason_event_ids": []
+      },
+      {
+        "concept_id": "concept:fc99315198253f848609d27f",
+        "status": "unchecked",
+        "evidence_ids": [],
+        "report_ids": [],
+        "latest_event_id": null,
+        "pending_answer_id": null,
+        "next_review_at": null,
+        "review_due": false,
+        "review_card_id": null,
+        "review_reason_event_ids": []
+      },
+      {
+        "concept_id": "concept:2ef0d0c8a08936b139d2e52f",
+        "status": "unchecked",
+        "evidence_ids": [],
+        "report_ids": [],
+        "latest_event_id": null,
+        "pending_answer_id": null,
+        "next_review_at": null,
+        "review_due": false,
+        "review_card_id": null,
+        "review_reason_event_ids": []
+      }
+    ],
+    "activities": [
+      {
+        "activity_id": "activity:25eab106b465317420ee",
+        "kind": "learn",
+        "concept_id": "concept:fc99315198253f848609d27f",
+        "card": null,
+        "minutes": 3,
+        "reason_code": "goal_prerequisite",
+        "reason": "Read the source prerequisite Resting potential on the path to your goal. Reading records participation, not correctness.",
+        "reason_event_ids": [],
+        "reason_source_ids": [
+          "citation:147ea8873577a8b4969ae20f",
+          "citation:1c86bfd2fad654744a1d622c",
+          "citation:3f1d4ff6a24822761ebb4233",
+          "citation:c0601f89cda9e75ae146ed2f"
+        ],
+        "prerequisite_path": [
+          "concept:2ef0d0c8a08936b139d2e52f",
+          "concept:ebe41b8ff169e123ee7d59b1",
+          "concept:fc99315198253f848609d27f"
+        ],
+        "prerequisite_edge_ids": [
+          "edge:ed08f07aa59fe879e360f140",
+          "edge:92e66fb3ac860651c498e325"
+        ],
+        "teaching_mode": "explanation",
+        "support_text": "Resting potential is a prerequisite for Action potential.\nResting potential: the baseline voltage across a membrane.\nBefore studying Transmitter release, understand Action potential.",
+        "resource_url": "loke-source:document:85b3b1e61c4d5b72f4bb4da9#citation:147ea8873577a8b4969ae20f"
+      },
+      {
+        "activity_id": "activity:590d2fe36fd0aeed230b",
+        "kind": "learn",
+        "concept_id": "concept:ebe41b8ff169e123ee7d59b1",
+        "card": null,
+        "minutes": 3,
+        "reason_code": "goal_prerequisite",
+        "reason": "Read the source prerequisite Action potential on the path to your goal. Reading records participation, not correctness.",
+        "reason_event_ids": [],
+        "reason_source_ids": [
+          "citation:147ea8873577a8b4969ae20f",
+          "citation:30e48b537100ccb61550042c",
+          "citation:bbbc50d4ced225f9d0b00c19",
+          "citation:c0601f89cda9e75ae146ed2f"
+        ],
+        "prerequisite_path": [
+          "concept:2ef0d0c8a08936b139d2e52f",
+          "concept:ebe41b8ff169e123ee7d59b1"
+        ],
+        "prerequisite_edge_ids": [
+          "edge:ed08f07aa59fe879e360f140"
+        ],
+        "teaching_mode": "explanation",
+        "support_text": "Resting potential is a prerequisite for Action potential.\nAction potential (AP): a brief electrical signal.\nBefore studying Transmitter release, understand Action potential.",
+        "resource_url": "loke-source:document:85b3b1e61c4d5b72f4bb4da9#citation:147ea8873577a8b4969ae20f"
+      },
+      {
+        "activity_id": "activity:f89c0a4068365e44c2b0",
+        "kind": "learn",
+        "concept_id": "concept:2ef0d0c8a08936b139d2e52f",
+        "card": null,
+        "minutes": 3,
+        "reason_code": "goal_check",
+        "reason": "Read the supplied goal material. No authored question is available, so understanding remains unchecked.",
+        "reason_event_ids": [],
+        "reason_source_ids": [
+          "citation:04d77411a01563674b1e472d",
+          "citation:c0601f89cda9e75ae146ed2f",
+          "citation:de9f6a6c058b40ed50a13364"
+        ],
+        "prerequisite_path": [],
+        "prerequisite_edge_ids": [],
+        "teaching_mode": "explanation",
+        "support_text": "Before studying Transmitter release, understand Action potential.\nTransmitter release: chemical signaling between neurons.",
+        "resource_url": "loke-source:document:85b3b1e61c4d5b72f4bb4da9#citation:04d77411a01563674b1e472d"
+      }
+    ],
+    "clarification": null
+  }
+}
