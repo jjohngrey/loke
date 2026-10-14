@@ -82,6 +82,10 @@ export type Events1 = EvidenceEvent[];
 export type Sources1 = SourceChunk[];
 export type ConceptId4 = string | null;
 export type Explanation = string;
+export type Text3 = string;
+export type Provenance = "audio_transcription";
+export type Saved = false;
+export type Detail = string;
 
 export interface ContractBundle {
   goal: GoalInput;
@@ -92,6 +96,8 @@ export interface ContractBundle {
   view: LearningView;
   context: ContextBundle;
   proposal: TopicProposal;
+  transcription: TranscriptionResult;
+  error: ApiError;
 }
 export interface GoalInput {
   request_id: RequestId;
@@ -204,4 +210,12 @@ export interface ContextBundle {
 export interface TopicProposal {
   concept_id: ConceptId4;
   explanation: Explanation;
+}
+export interface TranscriptionResult {
+  text: Text3;
+  provenance?: Provenance;
+  saved?: Saved;
+}
+export interface ApiError {
+  detail: Detail;
 }

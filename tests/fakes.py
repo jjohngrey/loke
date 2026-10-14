@@ -1,0 +1,100 @@
+"""Database-free MemoryPort adapter. Never mount this in the application."""
+
+from collections.abc import Callable
+from copy import deepcopy
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+from loke_contracts.ports import MemoryPort
+
+
+class FakeConflictError(ValueError):
+    """The baseline port exposes conflict semantics, not a concrete SQL exception."""
+
+
+class FakeMemory(MemoryPort):
+    def __init__(self):
+        self.records: dict[str, dict[str, Any]] = {}
+        self.outcomes: dict[tuple[str, str], tuple[str, dict[str, Any]]] = {}
+
+    def learner_ids(self) -> list[str]:
+        return list(self.records)
+
+    def snapshot(self, learner_id: str) -> dict[str, Any]:
+        return deepcopy(
+            self.records.get(
+                learner_id,
+                dict(
+                    goal="",
+                    storage_consent=False,
+                    reminders_enabled=False,
+                    study_minutes=10,
+                    agent_id=None,
+                    response="Set one learning goal to begin.",
+                    active_card_id=None,
+                    assisted_concepts=[],
+                    state_revision=0,
+                    plan_revision=0,
+                    demo_clock_hours=0,
+                    expires_at=(datetime.now(UTC) + timedelta(days=7)).isoformat(),
+                    states={},
+                    events=[],
+                    sources=[],
+                    plan=[],
+                    notifications=[],
+                    review_jobs=[],
+                ),
+            )
+        )
+
+    def mutate(
+        self,
+        learner_id: str,
+        request_id: str,
+        fingerprint: str,
+        expected_revision: int | None,
+        transform: Callable[[dict[str, Any]], None],
+    ) -> dict[str, Any]:
+        key = (learner_id, request_id)
+        if key in self.outcomes:
+            prior_fingerprint, outcome = self.outcomes[key]
+            if prior_fingerprint != fingerprint:
+                raise FakeConflictError("This request ID was already used for different content.")
+            return deepcopy(outcome)
+        current = self.snapshot(learner_id)
+        if expected_revision is not None and current["state_revision"] != expected_revision:
+            raise FakeConflictError("Learning state changed. Retry with a new request ID.")
+        # Transform an isolated copy: exceptions publish neither changes nor a dedupe outcome.
+        transform(current)
+        current["state_revision"] += 1
+        self.records[learner_id] = deepcopy(current)
+        self.outcomes[key] = (fingerprint, deepcopy(current))
+        return deepcopy(current)
+
+    def read_events(self, learner_id: str) -> list[dict[str, Any]]:
+        return self.snapshot(learner_id)["events"]
+
+    def read_sources(self, learner_id: str) -> list[dict[str, Any]]:
+        return self.snapshot(learner_id)["sources"]
+
+    def retrieve_sources(self, learner_id: str, query: str) -> list[dict[str, Any]]:
+        # Independent baseline token-overlap implementation, with no memory-layer import.
+        import re
+
+        def tokens(text):
+            return set(re.findall(r"[a-z0-9]+", text.lower()))
+
+        words = tokens(query)
+        ranked = [(len(words & tokens(s["text"])), s) for s in self.read_sources(learner_id)]
+        return [s for score, s in sorted(ranked, key=lambda pair: pair[0], reverse=True) if score][
+            :2
+        ]
+
+    def delete_learner(self, learner_id: str) -> None:
+        self.records.pop(learner_id, None)
+        self.outcomes = {key: value for key, value in self.outcomes.items() if key[0] != learner_id}
+
+    def expire(self) -> None:
+        for learner_id in self.learner_ids():
+            if datetime.fromisoformat(self.records[learner_id]["expires_at"]) <= datetime.now(UTC):
+                self.delete_learner(learner_id)

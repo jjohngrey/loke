@@ -1,0 +1,55 @@
+{
+  "goal": {
+    "request_id": "goal-1",
+    "goal": "Understand neuronal transmitter release",
+    "storage_consent": true,
+    "reminders_enabled": true,
+    "study_minutes": 10
+  },
+  "wrong_answer": {
+    "request_id": "answer-1",
+    "card_id": "ap-depolarization",
+    "answer": "A"
+  },
+  "attachment": {
+    "request_id": "note-1",
+    "text": "Action potentials involve sodium and potassium.",
+    "mode": "attachment"
+  },
+  "ungraded_answer": {
+    "request_id": "unsure-1",
+    "card_id": "ap-depolarization",
+    "answer": "I am not sure"
+  },
+  "prerequisite_answer": {
+    "request_id": "prerequisite-1",
+    "card_id": "resting-permeability",
+    "answer": "K+"
+  },
+  "assisted_answer": {
+    "request_id": "assisted-1",
+    "card_id": "ap-repolarization",
+    "answer": "A"
+  },
+  "unassisted_answer": {
+    "request_id": "correct-1",
+    "card_id": "ap-depolarization",
+    "answer": "B"
+  },
+  "text": {
+    "request_id": "text-1",
+    "text": "I studied action potentials.",
+    "mode": "text"
+  },
+  "voice": {
+    "request_id": "voice-1",
+    "text": "I studied action potentials.",
+    "mode": "voice"
+  },
+  "reminders": {
+    "enabled": false
+  },
+  "clock": {
+    "hours": 24
+  }
+}

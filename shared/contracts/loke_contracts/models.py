@@ -36,6 +36,17 @@ class ClockAdvance(Contract):
     hours: int = Field(default=24, ge=1, le=168)
 
 
+class TranscriptionResult(Contract):
+    text: str
+    provenance: Literal["audio_transcription"] = "audio_transcription"
+    saved: Literal[False] = False
+
+
+class ApiError(Contract):
+    # Validation (422) retains FastAPI's separate HTTPValidationError shape.
+    detail: str
+
+
 class Concept(Contract):
     id: str
     label: str
@@ -142,3 +153,5 @@ class ContractBundle(Contract):
     view: LearningView
     context: ContextBundle
     proposal: TopicProposal
+    transcription: TranscriptionResult
+    error: ApiError

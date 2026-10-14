@@ -1,0 +1,189 @@
+{
+  "learner_id": "fixture-learner",
+  "goal": "Understand neuronal transmitter release",
+  "storage_consent": true,
+  "reminders_enabled": true,
+  "agent_id": "d9b3d784-a164-5170-9c7a-b36c8b40c613",
+  "state_revision": 4,
+  "plan_revision": 4,
+  "model_mode": "demo",
+  "demo_clock_hours": 0,
+  "response": "Correct on this item. K+ leaving contributes to repolarization, alongside inactivation of Na+ channels.",
+  "plan": [
+    {
+      "kind": "practice",
+      "concept_id": "action_potential_phases",
+      "title": "Action-potential phases",
+      "reason": "One recorded item needs another practice check.",
+      "reason_event_ids": [
+        "26071fd4-898a-59f2-858e-24c21b01b0ab"
+      ],
+      "minutes": 2
+    },
+    {
+      "kind": "learn",
+      "concept_id": "presynaptic_calcium_entry",
+      "title": "Presynaptic calcium entry",
+      "reason": "Connect neuronal signaling to calcium entry.",
+      "reason_event_ids": [],
+      "minutes": 2
+    },
+    {
+      "kind": "learn",
+      "concept_id": "transmitter_release",
+      "title": "Transmitter release",
+      "reason": "Connect the sequence to your learning goal.",
+      "reason_event_ids": [],
+      "minutes": 2
+    }
+  ],
+  "active_quiz": {
+    "id": "ap-depolarization",
+    "concept_id": "action_potential_phases",
+    "kind": "mcq",
+    "prompt": "In a typical neuron, what mainly drives the rapid rising phase?",
+    "options": {
+      "A": "K+ leaves",
+      "B": "Na+ enters"
+    }
+  },
+  "states": [
+    {
+      "concept_id": "action_potential_phases",
+      "status": "needs_practice",
+      "evidence_ids": [
+        "26071fd4-898a-59f2-858e-24c21b01b0ab"
+      ],
+      "next_review_at": "2026-10-18T01:00:00Z"
+    },
+    {
+      "concept_id": "resting_potential",
+      "status": "recent_unassisted_correct",
+      "evidence_ids": [
+        "4259b90d-59aa-5bb2-bf81-098cccb919c3"
+      ],
+      "next_review_at": "2026-10-20T01:00:00Z"
+    }
+  ],
+  "concepts": [
+    {
+      "id": "ionic_gradients",
+      "label": "Ionic gradients",
+      "aliases": [
+        "gradient",
+        "pump",
+        "concentration"
+      ],
+      "prerequisites": [],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter01.html"
+    },
+    {
+      "id": "selective_permeability",
+      "label": "Selective permeability",
+      "aliases": [
+        "permeability",
+        "leak",
+        "channel"
+      ],
+      "prerequisites": [],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter01.html"
+    },
+    {
+      "id": "resting_potential",
+      "label": "Resting potential",
+      "aliases": [
+        "resting",
+        "membrane potential"
+      ],
+      "prerequisites": [
+        "ionic_gradients",
+        "selective_permeability"
+      ],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter01.html"
+    },
+    {
+      "id": "action_potential_phases",
+      "label": "Action-potential phases",
+      "aliases": [
+        "action potential",
+        "depolarization",
+        "repolarization",
+        "sodium",
+        "potassium"
+      ],
+      "prerequisites": [
+        "resting_potential"
+      ],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter02.html"
+    },
+    {
+      "id": "presynaptic_calcium_entry",
+      "label": "Presynaptic calcium entry",
+      "aliases": [
+        "calcium",
+        "presynaptic"
+      ],
+      "prerequisites": [
+        "action_potential_phases"
+      ],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter05.html"
+    },
+    {
+      "id": "transmitter_release",
+      "label": "Transmitter release",
+      "aliases": [
+        "transmitter",
+        "synapse",
+        "vesicle",
+        "release"
+      ],
+      "prerequisites": [
+        "presynaptic_calcium_entry"
+      ],
+      "resource_url": "https://nba.uth.tmc.edu/neuroscience/m/s1/chapter05.html"
+    }
+  ],
+  "events": [
+    {
+      "id": "64732f7a-e3d3-5b96-930e-50bb7767e022",
+      "card_id": "ap-depolarization",
+      "expected_answer": "b",
+      "grader": "choice-rule-v1",
+      "concept_id": "action_potential_phases",
+      "kind": "quiz_answer",
+      "text": "A",
+      "occurred_at": "2026-10-17T01:00:00Z",
+      "assessment": "incorrect",
+      "assistance": "none",
+      "source": "quiz"
+    },
+    {
+      "id": "4259b90d-59aa-5bb2-bf81-098cccb919c3",
+      "card_id": "resting-permeability",
+      "expected_answer": "k+",
+      "grader": "choice-rule-v1",
+      "concept_id": "resting_potential",
+      "kind": "quiz_answer",
+      "text": "K+",
+      "occurred_at": "2026-10-17T01:00:00Z",
+      "assessment": "correct",
+      "assistance": "none",
+      "source": "quiz"
+    },
+    {
+      "id": "26071fd4-898a-59f2-858e-24c21b01b0ab",
+      "card_id": "ap-repolarization",
+      "expected_answer": "a",
+      "grader": "choice-rule-v1",
+      "concept_id": "action_potential_phases",
+      "kind": "quiz_answer",
+      "text": "A",
+      "occurred_at": "2026-10-17T01:00:00Z",
+      "assessment": "correct",
+      "assistance": "after_explanation",
+      "source": "quiz"
+    }
+  ],
+  "notifications": [],
+  "sources": []
+}

@@ -8,10 +8,13 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from loke_contracts.models import (
     AnswerInput,
+    ApiError,
     ClockAdvance,
     GoalInput,
     LearningInput,
+    LearningView,
     ReminderSettings,
+    TranscriptionResult,
 )
 from loke_memory.store import ConflictError, Store
 
@@ -43,7 +46,12 @@ def create_app(database_url: str | None = None, learner_id: str | None = None):
         await scheduler.stop()
         store.engine.dispose()
 
-    app = FastAPI(title="Loke intelligence layer", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(
+        title="Loke intelligence layer",
+        version="0.1.0",
+        lifespan=lifespan,
+        responses={code: {"model": ApiError} for code in (400, 403, 409, 502)},
+    )
     app.state.store = store
     app.state.coordinator = coordinator
 
@@ -77,36 +85,36 @@ def create_app(database_url: str | None = None, learner_id: str | None = None):
 
     protected = [Depends(authorize)]
 
-    @app.get("/api/view", dependencies=protected)
+    @app.get("/api/view", dependencies=protected, response_model=LearningView)
     def view():
         return coordinator.view(selected_learner)
 
-    @app.post("/api/goal", dependencies=protected)
+    @app.post("/api/goal", dependencies=protected, response_model=LearningView)
     def goal(payload: GoalInput):
         return coordinator.goal(selected_learner, payload)
 
-    @app.post("/api/input", dependencies=protected)
+    @app.post("/api/input", dependencies=protected, response_model=LearningView)
     async def learning_input(payload: LearningInput):
         return await coordinator.input(selected_learner, payload)
 
-    @app.post("/api/quiz/answer", dependencies=protected)
+    @app.post("/api/quiz/answer", dependencies=protected, response_model=LearningView)
     def answer(payload: AnswerInput):
         return coordinator.answer(selected_learner, payload)
 
-    @app.post("/api/reminders", dependencies=protected)
+    @app.post("/api/reminders", dependencies=protected, response_model=LearningView)
     def reminders(payload: ReminderSettings):
         return coordinator.reminders(selected_learner, payload.enabled)
 
-    @app.post("/api/demo/clock", dependencies=protected)
+    @app.post("/api/demo/clock", dependencies=protected, response_model=LearningView)
     def clock(payload: ClockAdvance):
         return coordinator.advance_clock(selected_learner, payload.hours)
 
-    @app.delete("/api/learner", dependencies=protected)
+    @app.delete("/api/learner", dependencies=protected, response_model=LearningView)
     def delete_learner():
         store.delete_learner(selected_learner)
         return coordinator.view(selected_learner)
 
-    @app.post("/api/audio/transcribe", dependencies=protected)
+    @app.post("/api/audio/transcribe", dependencies=protected, response_model=TranscriptionResult)
     async def audio(file: UploadFile = File(...), audio_consent: str = Header(default="false")):
         if audio_consent != "true" or not coordinator.view(selected_learner).storage_consent:
             raise ValueError("Save a goal and consent to audio processing first.")
