@@ -8,6 +8,16 @@ This is the handoff to give your coding agent. Read [the input handoff](../input
 
 Your delivery is the real loop: goal and consent create/reuse a subject agent, a short plan chooses a question, a wrong answer commits evidence/state/plan/review together, an unchecked prerequisite is offered automatically, restart preserves the outcome and a due review creates one durable opt-in notification. Claims remain narrow: a report is not assessment, an item answer is not validated mastery, and a due date is a scheduling heuristic rather than measured forgetting.
 
+Standalone policy work now lives in `learning_policy.py`/`learning_models.py`, with semantic
+interpretation in `semantics.py` and an optional `semantic_openrouter.py` adapter. See
+[learning-policy design and offline scenarios](../../docs/LEARNING_POLICY.md). This core is not
+yet wired to the HTTP coordinator; the audited application gaps below still describe that app.
+
+Source-scoped graph discovery is now available independently of the catalog: see
+[source-graph pipeline and examples](../../docs/SOURCE_GRAPH_DISCOVERY.md). It preserves exact
+citations and labels inferred prerequisites, with an optional model adapter and offline demo.
+PDF/text upload, graph persistence and the learner UI remain integration work.
+
 ## Files and authority
 
 | Area | Responsibility |
