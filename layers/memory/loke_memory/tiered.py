@@ -247,6 +247,28 @@ class TieredMemory:
             result.recent.reverse()
             return result
 
+    def memory_node(self, learner_id, generation_id, key, after_sequence=0, limit=25, expected_tree_version=None):
+        if not 1 <= limit <= 100 or after_sequence < 0:
+            raise ValueError("Tree read bounds exceeded.")
+        with self.engine.begin() as conn:
+            if self._lock(conn, learner_id) != generation_id:
+                raise ConflictError("Memory tree was reset.")
+            node = conn.execute(select(db.nodes).where(db.nodes.c.learner_id == learner_id,
+                                                       db.nodes.c.key == key)).mappings().first()
+            if node is None:
+                return None
+            tree_version = conn.execute(select(db.nodes.c.data["version"].as_integer()).where(
+                db.nodes.c.learner_id == learner_id, db.nodes.c.key == node["root_id"])).scalar_one()
+            if expected_tree_version is not None and tree_version != expected_tree_version:
+                raise ConflictError("Memory tree changed. Reload node references.")
+            records = list(conn.execute(select(db.assignments.c.key, db.assignments.c.sequence).where(
+                db.assignments.c.learner_id == learner_id, db.assignments.c.node_id == key,
+                db.assignments.c.sequence > after_sequence).order_by(db.assignments.c.sequence)
+                .limit(limit + 1)))
+            return dict(node["data"], id=key, root_id=node["root_id"], parent_id=node["parent_id"], tree_version=tree_version,
+                record_ids=[r[0] for r in records[:limit]], truncated=len(records) > limit,
+                next_sequence=records[limit - 1][1] if len(records) > limit else None)
+
     def original_record(self, learner_id, generation_id, key):
         with self.engine.begin() as conn:
             if self._lock(conn, learner_id) != generation_id:

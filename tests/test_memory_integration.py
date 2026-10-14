@@ -208,3 +208,20 @@ def test_latest_correction_uses_observation_order_not_id_sort(pg_url):
                                       policy.replay_projection)
     assert result["states"] == {}
     assert result["events"][0]["assessment"] == "correct"
+
+
+def test_guarded_delete_rejects_old_browser_generation(pg_url, monkeypatch):
+    from fastapi.testclient import TestClient
+    from loke_intelligence.app import create_app
+    monkeypatch.setenv("SESSION_TOKEN", "test-token")
+    monkeypatch.setenv("MODEL_MODE", "demo")
+    app = create_app(pg_url, "one")
+    goal(app.state.store)
+    old = app.state.store.snapshot("one")["generation_id"]
+    app.state.store.delete_learner("one")
+    goal(app.state.store)
+    with TestClient(app) as client:
+        response = client.delete("/api/learner", params={"generation_id": old},
+                                 headers={"x-loke-session": "test-token"})
+        assert response.status_code == 409
+        assert app.state.store.snapshot("one")["storage_consent"]

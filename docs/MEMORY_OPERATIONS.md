@@ -89,7 +89,8 @@ retries at most three times, then remains visibly failed in the jobs table; no s
 Configure summary trigger/tail, leaf count/token limit and context limit through MEMORY_* settings
 in `.env.example`; values are validated. Hard caps: fanout eight, depth six, ten leaves per job and
 3,000 estimated context tokens. The estimator is UTF-8 bytes divided by three, rounded up; it is
-not a promise about exact model-provider token counts. Source/record IDs allow on-demand lookup
+not a promise about exact model-provider token counts. Tree reads expose a tree_version guard and sequence cursor for safe bounded navigation.
+Source/record IDs allow on-demand lookup
 when a context excerpt is truncated.
 
 Memory partitions use ordered sequence ranges in a balanced B+ tree. Splits reference existing

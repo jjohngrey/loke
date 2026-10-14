@@ -164,3 +164,20 @@ def test_depth_saturation_is_visible_and_keeps_overflow_records(pg_url):
     tree_invariants(store, 21, 2, 1)
     context = store.memory_context("one", generation, "sodium", ChatScope(chat_id="chat-a"))
     assert context.maintenance_saturated
+
+
+def test_tree_navigation_is_scoped_and_paginates_original_records(pg_url):
+    store = Store(pg_url)
+    generation, root = setup(store)
+    for index in range(4):
+        turn(store, generation, root, index)
+    page = store.memory_node("one", generation, root, limit=2)
+    assert len(page["record_ids"]) == 2 and page["truncated"]
+    rest = store.memory_node("one", generation, root, after_sequence=page["next_sequence"], limit=100)
+    assert not set(rest["record_ids"]) & set(page["record_ids"])
+    assert len(rest["record_ids"]) == 3
+    assert store.original_record("one", generation, rest["record_ids"][0])
+    assert store.memory_node("two", store.snapshot("two")["generation_id"], root) is None
+    turn(store, generation, root, 5)
+    with pytest.raises(ConflictError, match="tree changed"):
+        store.memory_node("one", generation, root, expected_tree_version=page["tree_version"])
