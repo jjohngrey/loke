@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from loke_memory import schema as legacy
 from loke_memory import tables as db
-from loke_memory.migrations import migrate
+from loke_memory.migrations import VERSION, migrate
 from sqlalchemy import create_engine, insert, inspect, select
 
 
@@ -12,7 +12,7 @@ def test_fresh_migration_is_idempotent(pg_url):
     migrate(engine)
     migrate(engine)
     with engine.connect() as conn:
-        assert conn.execute(select(db.versions.c.version)).scalar_one() == 1
+        assert conn.execute(select(db.versions.c.version)).scalar_one() == VERSION
     engine.dispose()
 
 

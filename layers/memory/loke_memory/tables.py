@@ -66,4 +66,12 @@ objects = scoped("memory_objects", Column("kind", String, nullable=False),
                  Column("document_id", String, nullable=False))
 corrections = scoped("memory_corrections", Column("event_id", String, nullable=False),
                      constraints=(ForeignKeyConstraint(["learner_id", "event_id"],
-                                  ["memory_events.learner_id", "memory_events.key"]),))
+                                  ["memory_events.learner_id", "memory_events.key"], ondelete="CASCADE"),))
+
+reviewed_concepts = Table("memory_catalog_concepts", metadata,
+    Column("id", String, primary_key=True), Column("data", JSON, nullable=False))
+reviewed_edges = Table("memory_catalog_edges", metadata,
+    Column("id", String, primary_key=True),
+    Column("from_id", String, ForeignKey("memory_catalog_concepts.id"), nullable=False),
+    Column("to_id", String, ForeignKey("memory_catalog_concepts.id"), nullable=False),
+    Column("kind", String, nullable=False), Column("version", String, nullable=False))
