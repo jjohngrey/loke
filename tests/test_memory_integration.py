@@ -191,3 +191,20 @@ def test_expired_content_is_unavailable_before_hourly_cleanup(pg_url):
     with store.engine.connect() as conn:
         for table in (db.messages, db.logs, db.nodes, base.outcomes, base.events):
             assert conn.execute(select(table)).first() is None
+
+
+def test_latest_correction_uses_observation_order_not_id_sort(pg_url):
+    store = Store(pg_url)
+    goal(store)
+    Coordinator(store).answer("one", AnswerInput(request_id="a", card_id="ap-depolarization", answer="B"))
+    current = store.snapshot("one")
+    event = current["events"][0]
+    replacement = dict(event["projection_after"], status="needs_practice")
+    store.add_correction("one", CommitGuard(generation_id=current["generation_id"], state_revision=2),
+                         "z-old", event["id"], {"assessment": "incorrect", "projection_after": replacement})
+    store.add_correction("one", CommitGuard(generation_id=current["generation_id"], state_revision=3),
+                         "a-new", event["id"], {"assessment": "ungraded"})
+    result = store.rebuild_projection("one", CommitGuard(generation_id=current["generation_id"], state_revision=4),
+                                      policy.replay_projection)
+    assert result["states"] == {}
+    assert result["events"][0]["assessment"] == "correct"

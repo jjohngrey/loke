@@ -1,5 +1,6 @@
 """Durable reviews, hourly cleanup and cron-style memory maintenance.
-Lifecycle originally adapted from OpenPoke (MIT); see third_party/openpoke/LICENSE.
+Lifecycle originally adapted from OpenPoke (MIT).
+Copyright (c) 2025 OpenPoke Contributors. See third_party/openpoke/LICENSE.
 """
 import asyncio
 import logging
