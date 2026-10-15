@@ -1,5 +1,6 @@
 """Composition root is the only intelligence file importing the memory implementation."""
 
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -40,6 +41,12 @@ load_dotenv(ROOT / ".env")
 
 def create_app(database_url: str | None = None, learner_id: str | None = None,
                agent_runtime: AgentRuntime | None = None):
+    # Uvicorn configures its own loggers, leaving application INFO logs disabled.
+    model_logger = logging.getLogger(f"{__package__}.runtime_model")
+    if model_logger.level == logging.NOTSET:
+        model_logger.setLevel(logging.INFO)
+    if not model_logger.hasHandlers():
+        model_logger.addHandler(logging.StreamHandler())
     store = Store(database_url or os.getenv("DATABASE_URL", f"sqlite:///{ROOT / 'work/loke.db'}"))
     mode = os.getenv("MODEL_MODE", "demo")
     if mode not in {"demo", "live"}:

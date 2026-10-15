@@ -51,6 +51,7 @@ class ModelReply:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     text_streamed: bool = False
+    truncated: bool = False
 
 
 class ModelAdapter(Protocol):
@@ -301,6 +302,13 @@ class AgentRuntime:
                                 break
                             if "".join(streamed_content) != reply.text:
                                 raise ModelFailure("invalid_response")
+                        if reply.truncated:
+                            if reply.text and not reply.text_streamed:
+                                delta = (("\n" if text else "") + reply.text)[:remaining]
+                                text += delta
+                                run.publish("message_delta", message=delta)
+                            reason = "output_budget"
+                            break
                         if (not reply.text_streamed
                                 and len(reply.text) + len(text) + bool(text) > run.limits.output_chars):
                             reason = "output_budget"
@@ -391,7 +399,13 @@ class AgentRuntime:
             status = "failed"
         if reason:
             notice = {"cancelled": "Response cancelled.", "session_reset": "Chat reset.",
-                      "deadline": "The response reached its time limit. Try a shorter request."}.get(
+                      "deadline": "The response reached its time limit. Try a shorter request.",
+                      "output_budget": (
+                          "The response was truncated after reaching its output budget."
+                          if text.strip() else
+                          "The model reached its output budget before producing a visible response. "
+                          "Please try again."
+                      )}.get(
                           reason, "The response reached a runtime limit. Try a shorter request.")
             if reason == "provider_error":
                 notice = str(model_failure)

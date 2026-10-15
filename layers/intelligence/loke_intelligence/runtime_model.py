@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import os
 import re
 import time
@@ -12,7 +13,10 @@ import httpx
 from .agent_runtime import ModelReply, ModelToolCall
 from .runtime_errors import ModelFailure
 
+logger = logging.getLogger(__name__)
+
 _KNOWN_FINISH_REASONS = {"stop", "tool_calls", "length", "content_filter", "function_call"}
+_REASONING_EFFORTS = {"max", "xhigh", "high", "medium", "low", "minimal", "none"}
 
 
 def _safe_finish_reason(value):
@@ -21,6 +25,37 @@ def _safe_finish_reason(value):
     if isinstance(value, str) and value in _KNOWN_FINISH_REASONS:
         return value
     return "other"
+
+
+def _reasoning_effort():
+    value = os.getenv("OPENROUTER_REASONING_EFFORT", "").strip().lower()
+    if value and value not in _REASONING_EFFORTS:
+        raise ModelFailure("configuration", configuration_field="OPENROUTER_REASONING_EFFORT")
+    return value or None
+
+
+def _usage_counts(usage, prompt_tokens, completion_tokens, reasoning_tokens):
+    if not isinstance(usage, dict):
+        return prompt_tokens, completion_tokens, reasoning_tokens
+    for field in ("prompt_tokens", "completion_tokens"):
+        value = usage.get(field)
+        if value is not None:
+            if type(value) is not int or value < 0:
+                raise ModelFailure("invalid_response")
+            if field == "prompt_tokens":
+                prompt_tokens = value
+            else:
+                completion_tokens = value
+    details = usage.get("completion_tokens_details")
+    if details is not None:
+        if not isinstance(details, dict):
+            raise ModelFailure("invalid_response")
+        value = details.get("reasoning_tokens")
+        if value is not None:
+            if type(value) is not int or value < 0:
+                raise ModelFailure("invalid_response")
+            reasoning_tokens = value
+    return prompt_tokens, completion_tokens, reasoning_tokens
 
 
 class DemoRuntimeModel:
@@ -54,7 +89,7 @@ class OpenRouterRuntimeModel:
         diagnostics = {
             "model": os.getenv("TEXT_MODEL", "openai/gpt-4.1-mini"),
             "provider": os.getenv("OPENROUTER_PROVIDER", "OpenAI"),
-            "tools_enabled": tools_enabled, "max_tokens": min(1500, output_chars),
+            "tools_enabled": tools_enabled,
             "require_parameters": True, "data_collection": "deny", "retry_count": 0,
         }
         key = os.getenv("OPENROUTER_API_KEY", "").strip()
@@ -64,9 +99,17 @@ class OpenRouterRuntimeModel:
             if not re.fullmatch(r"[A-Za-z0-9._:/-]{1,128}", value) or (key and key in value):
                 diagnostics[name] = "[omitted]"
         try:
-            return await self._complete(messages, tools, tools_enabled=tools_enabled,
-                                        output_chars=output_chars, diagnostics=diagnostics,
-                                        on_text_delta=on_text_delta)
+            reasoning_effort = _reasoning_effort()
+            diagnostics["reasoning_effort"] = reasoning_effort or "provider_default"
+            reply = await self._complete(
+                messages, tools, tools_enabled=tools_enabled,
+                reasoning_effort=reasoning_effort,
+                diagnostics=diagnostics, on_text_delta=on_text_delta,
+            )
+            diagnostics["model_elapsed_ms"] = int((time.monotonic() - started) * 1000)
+            logger.info("runtime_model_response %s", json.dumps(diagnostics, sort_keys=True),
+                        extra={"runtime_model_diagnostic": dict(diagnostics)})
+            return reply
         except ModelFailure as exc:
             failure = exc
         except httpx.TimeoutException as exc:
@@ -78,7 +121,7 @@ class OpenRouterRuntimeModel:
         failure.diagnostics.update(diagnostics, model_elapsed_ms=int((time.monotonic() - started) * 1000))
         raise failure from None
 
-    async def _complete(self, messages, tools, *, tools_enabled, output_chars, diagnostics,
+    async def _complete(self, messages, tools, *, tools_enabled, reasoning_effort, diagnostics,
                         on_text_delta: Callable[[str], None] | None = None):
         key = os.getenv("OPENROUTER_API_KEY", "").strip()
         if not key:
@@ -87,11 +130,14 @@ class OpenRouterRuntimeModel:
             "model": os.getenv("TEXT_MODEL", "openai/gpt-4.1-mini"),
             "messages": messages, "tools": tools,
             "tool_choice": "auto" if tools_enabled else "none",
-            "max_tokens": min(1500, output_chars), "stream": True,
+            # Leave the completion allowance to the provider/model, including reasoning.
+            "stream": True,
             "stream_options": {"include_usage": True},
             "provider": {"require_parameters": True, "data_collection": "deny",
                          "only": [os.getenv("OPENROUTER_PROVIDER", "OpenAI")]},
         }
+        if reasoning_effort:
+            payload["reasoning"] = {"effort": reasoning_effort}
         async with httpx.AsyncClient(timeout=20, transport=self.transport) as client:
             async with client.stream(
                 "POST", "https://openrouter.ai/api/v1/chat/completions",
@@ -120,7 +166,7 @@ class OpenRouterRuntimeModel:
 
                 content = []
                 tool_deltas = {}
-                prompt_tokens = completion_tokens = 0
+                prompt_tokens = completion_tokens = reasoning_tokens = None
                 finish_reason = None
                 stream_bytes = 0
                 done_received = False
@@ -137,8 +183,8 @@ class OpenRouterRuntimeModel:
                     usage = data.get("usage")
                     if isinstance(usage, dict):
                         usage_received = True
-                        prompt_tokens = usage.get("prompt_tokens", prompt_tokens)
-                        completion_tokens = usage.get("completion_tokens", completion_tokens)
+                        prompt_tokens, completion_tokens, reasoning_tokens = _usage_counts(
+                            usage, prompt_tokens, completion_tokens, reasoning_tokens)
                     choices = data.get("choices") or []
                     if len(choices) != 1 or not isinstance(choices[0], dict):
                         raise ModelFailure("invalid_response")
@@ -191,8 +237,8 @@ class OpenRouterRuntimeModel:
                         usage = data.get("usage")
                         if isinstance(usage, dict):
                             usage_received = True
-                            prompt_tokens = usage.get("prompt_tokens", prompt_tokens)
-                            completion_tokens = usage.get("completion_tokens", completion_tokens)
+                            prompt_tokens, completion_tokens, reasoning_tokens = _usage_counts(
+                                usage, prompt_tokens, completion_tokens, reasoning_tokens)
                         choices = data.get("choices") or []
                         if not choices:
                             continue
@@ -258,16 +304,23 @@ class OpenRouterRuntimeModel:
                     "stream_done": done_received if response_format == "sse" else None,
                     "usage_received": usage_received,
                 })
-                if finish_reason not in {"stop", "tool_calls"}:
+                if prompt_tokens is not None:
+                    diagnostics["prompt_tokens"] = prompt_tokens
+                if completion_tokens is not None:
+                    diagnostics["completion_tokens"] = completion_tokens
+                if reasoning_tokens is not None:
+                    diagnostics["reasoning_tokens"] = reasoning_tokens
+                if finish_reason not in {"stop", "tool_calls", "length"}:
                     raise ModelFailure("invalid_response")
                 calls = []
-                for index in sorted(tool_deltas):
-                    call = tool_deltas[index]
-                    if call["type"] != "function" or not call["id"] or not call["name"]:
-                        raise ModelFailure("invalid_response")
-                    calls.append(ModelToolCall(call["id"], call["name"], call["arguments"]))
-                if (type(prompt_tokens) is not int or prompt_tokens < 0
-                        or type(completion_tokens) is not int or completion_tokens < 0):
-                    raise ModelFailure("invalid_response")
-                return ModelReply("".join(content), calls, prompt_tokens, completion_tokens,
-                                  text_streamed=on_text_delta is not None)
+                if finish_reason != "length":
+                    for index in sorted(tool_deltas):
+                        call = tool_deltas[index]
+                        if call["type"] != "function" or not call["id"] or not call["name"]:
+                            raise ModelFailure("invalid_response")
+                        calls.append(ModelToolCall(call["id"], call["name"], call["arguments"]))
+                return ModelReply(
+                    "".join(content), calls, prompt_tokens or 0, completion_tokens or 0,
+                    text_streamed=on_text_delta is not None,
+                    truncated=finish_reason == "length",
+                )
