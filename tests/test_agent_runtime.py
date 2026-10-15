@@ -1,5 +1,8 @@
 import asyncio
 import json
+import os
+import subprocess
+import sys
 from dataclasses import replace
 
 import httpx
@@ -383,6 +386,7 @@ def test_real_provider_adapter_tool_transcript_and_sanitized_errors(monkeypatch)
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-provider-token")
     monkeypatch.setenv("TEXT_MODEL", "meta/muse-wonder")
     monkeypatch.setenv("OPENROUTER_PROVIDER", "Meta")
+    monkeypatch.setenv("OPENROUTER_REASONING_EFFORT", "low")
     requests = []
 
     def transport(req):
@@ -393,6 +397,10 @@ def test_real_provider_adapter_tool_transcript_and_sanitized_errors(monkeypatch)
         assert body["provider"] == {
             "require_parameters": True, "data_collection": "deny", "only": ["Meta"],
         }
+        assert "max_tokens" not in body
+        assert "max_completion_tokens" not in body
+        assert "max_output_tokens" not in body
+        assert body["reasoning"] == {"effort": "low"}
         if len(requests) == 1:
             message = {"role": "assistant", "content": "Before tool", "tool_calls": [call().message()]}
         else:
@@ -479,7 +487,9 @@ def test_provider_failures_have_safe_messages_and_structured_diagnostics(monkeyp
         assert diagnostic["model"] == "meta/muse-wonder" and diagnostic["provider"] == "Meta"
         assert diagnostic["tools_enabled"] is True
         assert diagnostic["require_parameters"] is True and diagnostic["data_collection"] == "deny"
-        assert diagnostic["retry_count"] == 0 and diagnostic["max_tokens"] == 1500
+        assert diagnostic["retry_count"] == 0
+        assert "max_completion_tokens" not in diagnostic
+        assert diagnostic["reasoning_effort"] == "provider_default"
         assert diagnostic["model_elapsed_ms"] >= 0
         assert diagnostic["run_id"] == run.run_id and diagnostic["frames"]
         observable = caplog.text + outcome.model_dump_json() + json.dumps(
@@ -541,6 +551,105 @@ def test_invalid_provider_response_has_controlled_failure(monkeypatch, caplog, b
         assert outcome.text == ModelFailure.MESSAGES["invalid_response"]
         assert caplog.records[-1].runtime_diagnostic["category"] == "invalid_response"
         assert "private malformed JSON" not in outcome.text + caplog.text
+    asyncio.run(scenario())
+
+
+def test_length_finish_reason_is_output_budget_with_usage_diagnostics(monkeypatch, caplog):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "configured-secret")
+    monkeypatch.delenv("OPENROUTER_REASONING_EFFORT", raising=False)
+    event = json.dumps({
+        "choices": [{"delta": {}, "finish_reason": "length"}],
+        "usage": {
+            "prompt_tokens": 120,
+            "completion_tokens": 4096,
+            "completion_tokens_details": {"reasoning_tokens": 4096},
+        },
+    })
+    body = f"data: {event}\n\ndata: [DONE]\n\n".encode()
+
+    async def scenario():
+        adapter = OpenRouterRuntimeModel(httpx.MockTransport(lambda req: httpx.Response(
+            200, headers={"content-type": "text/event-stream"}, content=body,
+        )))
+        outcome = await finish(engine(adapter).reserve("owner", request()))
+        assert outcome.status == "failed" and outcome.reason == "output_budget"
+        assert outcome.text == (
+            "The model reached its output budget before producing a visible response. Please try again."
+        )
+        assert outcome.usage.prompt_tokens == 120
+        assert outcome.usage.completion_tokens == 4096
+        diagnostic = next(
+            record.runtime_model_diagnostic for record in caplog.records
+            if hasattr(record, "runtime_model_diagnostic")
+        )
+        assert diagnostic["finish_reason"] == "length"
+        assert diagnostic["stream_done"] is True
+        assert diagnostic["prompt_tokens"] == 120
+        assert diagnostic["completion_tokens"] == 4096
+        assert diagnostic["reasoning_tokens"] == 4096
+    asyncio.run(scenario())
+
+
+def test_model_diagnostics_are_visible_with_default_server_logging():
+    result = subprocess.run([sys.executable, "-c", """
+import logging
+import uvicorn
+
+uvicorn.Config('loke_intelligence.app:app').configure_logging()
+import loke_intelligence.app
+
+logger = logging.getLogger('loke_intelligence.runtime_model')
+assert logger.isEnabledFor(logging.INFO)
+assert logger.hasHandlers()
+logger.info('runtime_model_response startup-diagnostic')
+"""], env={**os.environ, "MODEL_MODE": "demo", "DATABASE_URL": "sqlite:///:memory:"},
+        capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert "runtime_model_response startup-diagnostic" in result.stderr
+
+
+@pytest.mark.parametrize("streamed", [False, True])
+@pytest.mark.parametrize("partial,output_chars", [("Partial answer", 6000), ("x" * 200, 100)])
+def test_truncated_replies_preserve_bounded_text_and_skip_tools(streamed, partial, output_chars):
+    class TruncatedModel:
+        async def complete(self, messages, tools, **kwargs):
+            if streamed:
+                kwargs["on_text_delta"](partial)
+            return ModelReply(partial, [call()], prompt_tokens=12, completion_tokens=50,
+                              text_streamed=streamed, truncated=True)
+
+    async def scenario():
+        runtime = engine(TruncatedModel(), output_chars=output_chars)
+        run = runtime.reserve("owner", request())
+        outcome = await finish(run)
+        notice = "The response was truncated after reaching its output budget."
+        expected_partial = partial[:output_chars - len(notice) - 1]
+        assert outcome.reason == "output_budget" and outcome.status == "failed"
+        assert outcome.text == expected_partial + "\n" + notice
+        assert len(outcome.text) <= output_chars
+        assert outcome.usage.prompt_tokens == 12 and outcome.usage.completion_tokens == 50
+        assert outcome.usage.tool_calls == 0 and outcome.elements == []
+        assert any(event.type == "message_delta" for event in run.events)
+        history = runtime.store.session("owner", "chat").conversation
+        assert not any("tool_calls" in message for group in history for message in group)
+    asyncio.run(scenario())
+
+
+def test_invalid_openrouter_reasoning_configuration_is_controlled(monkeypatch, caplog):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "configured-secret")
+    monkeypatch.setenv("OPENROUTER_REASONING_EFFORT", "extreme")
+
+    async def scenario():
+        def unexpected_request(req):
+            raise AssertionError("Invalid configuration must fail before the provider request.")
+
+        outcome = await finish(engine(OpenRouterRuntimeModel(
+            httpx.MockTransport(unexpected_request))).reserve("owner", request()))
+        assert outcome.status == "failed" and outcome.reason == "provider_error"
+        assert outcome.text == ModelFailure.MESSAGES["configuration"]
+        diagnostic = caplog.records[-1].runtime_diagnostic
+        assert diagnostic["category"] == "configuration"
+        assert diagnostic["configuration_field"] == "OPENROUTER_REASONING_EFFORT"
     asyncio.run(scenario())
 
 

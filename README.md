@@ -55,14 +55,19 @@ Chat now calls an independent agent runtime; it does not invoke learning policy 
 the learner database. In demo mode, ask for **options** to exercise the example tool,
 then select an option to send an ordinary follow-up. The demo adapter supplies fixture
 responses; `MODEL_MODE=live` uses server-side OpenRouter tool calling with the existing
-`OPENROUTER_API_KEY`, `TEXT_MODEL` and `OPENROUTER_PROVIDER` configuration.
+`OPENROUTER_API_KEY`, `TEXT_MODEL` and `OPENROUTER_PROVIDER` configuration. Live chat
+omits the completion-token cap and uses the provider/model default. Reasoning models
+can additionally use `OPENROUTER_REASONING_EFFORT` (for example, `low`). The runtime's
+28-second deadline and 6,000-character visible-output limit still apply.
 
 Provider failures return controlled, actionable messages. Server logs emit
 `runtime_request_failed` with the run ID, error category, HTTP status and numeric provider
 code when available, bounded provider request ID, model/provider settings, timing, call
 counts and stack locations. Structured handlers can read the same `runtime_diagnostic`
-record field. Logs omit raw exception messages, response bodies, headers, prompts and
-stack locals; use the provider request ID to investigate further with the provider.
+record field. Completed provider responses emit `runtime_model_response` with safe stream
+diagnostics and numeric prompt, completion and (when supplied) reasoning-token usage.
+Logs omit raw exception messages, response bodies, headers, prompts and stack locals; use
+the provider request ID to investigate further with the provider.
 
 The engine in `agent_runtime.py` injects a model, tool registry and session store.
 `runtime_tools.py` registers the single `generate_multiple_choice_response` handler
