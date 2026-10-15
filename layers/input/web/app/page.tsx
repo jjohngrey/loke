@@ -1,6 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useRuntimeChat } from "./use-runtime-chat";
+import { RuntimeElement } from "./runtime-elements";
+import type { RuntimeDisplay } from "./runtime-client";
 import {
   useEffect,
   useRef,
@@ -9,7 +12,7 @@ import {
   type ReactNode,
 } from "react";
 
-const Seasons = dynamic(() => import("anatomy-figures/seasons"), {
+const Seasons = dynamic(() => import("anatomy-figures").then((module) => module.Seasons), {
   ssr: false,
 });
 
@@ -180,7 +183,7 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   );
 }
 
-type Message = { id: string; role: "user" | "loke"; text: string };
+type Message = { id: string; role: "user" | "loke"; text: string; runtime?: RuntimeDisplay };
 type Chat = {
   id: string;
   title: string;
@@ -259,6 +262,16 @@ export default function Workspace() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [section, setSection] = useState<Section>("chats");
   const [chats, setChats] = useState<Chat[]>(initialChats);
+  const runtimeChat = useRuntimeChat((chatId, requestId, display) => {
+    setChats((items) => items.map((chat) => {
+      if (chat.id !== chatId) return chat;
+      const id = `runtime-${requestId}`;
+      const message: Message = { id, role: "loke", text: display.text, runtime: display };
+      const existing = chat.messages.some((item) => item.id === id);
+      return { ...chat, messages: existing ? chat.messages.map((item) => item.id === id ? message : item)
+        : [...chat.messages, message] };
+    }));
+  });
   const [folders, setFolders] = useState<Folder[]>(initialFolders);
   const [expandedFolders, setExpandedFolders] = useState<
     Record<string, boolean>
@@ -277,6 +290,8 @@ export default function Workspace() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const activeChat = chats.find((chat) => chat.id === activeChatId);
+  const activeRun = activeChatId ? runtimeChat.runs[activeChatId] : undefined;
+  const chatBusy = activeRun?.phase === "running" || activeRun?.phase === "resetting" || activeRun?.phase === "offline";
   const matches = (chat: Chat) =>
     chat.title.toLowerCase().includes(search.trim().toLowerCase());
   const recent = chats.filter(
@@ -327,8 +342,13 @@ export default function Workspace() {
 
   function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const text = draft.trim();
-    if (!text) return;
+    submitChatMessage(draft.trim());
+  }
+
+  function submitChatMessage(text: string) {
+    if (!text || text.length > 4000 || chatBusy) return;
+    const chatId = activeChatId || crypto.randomUUID();
+    if (!runtimeChat.submit(chatId, text)) return;
     const message: Message = { id: crypto.randomUUID(), role: "user", text };
     if (activeChatId) {
       setChats((items) =>
@@ -339,7 +359,7 @@ export default function Workspace() {
         ),
       );
     } else {
-      const id = crypto.randomUUID();
+      const id = chatId;
       setChats((items) => [
         {
           id,
@@ -351,6 +371,14 @@ export default function Workspace() {
       setActiveChatId(id);
     }
     setDraft("");
+  }
+
+  async function resetChat() {
+    if (!activeChatId) return;
+    const id = activeChatId;
+    if (await runtimeChat.reset(id)) {
+      setChats((items) => items.map((chat) => chat.id === id ? { ...chat, messages: [] } : chat));
+    }
   }
 
   function addFolder(event: FormEvent<HTMLFormElement>) {
@@ -641,7 +669,14 @@ export default function Workspace() {
                               <Icon name="spark" size={19} />
                             </div>
                           )}
-                          <p>{message.text}</p>
+                          <div className="message-content">
+                            {message.text && <p>{message.text}</p>}
+                            {message.runtime?.elements.map((element) => (
+                              <RuntimeElement key={`${message.runtime?.runId}/${element.element_id}`}
+                                element={element} disabled={!!chatBusy || message.runtime?.outcome?.status !== "completed"}
+                                onChoose={submitChatMessage} />
+                            ))}
+                          </div>
                         </article>
                       ))}
                       <div ref={messagesEndRef} />
@@ -651,6 +686,18 @@ export default function Workspace() {
                   )}
                 </div>
                 <div className="composer-zone">
+                  <div className="runtime-controls">
+                    <span role="status" aria-live="polite">
+                      {activeRun?.error || (activeRun?.phase === "running" ? `${activeRun.display.progress}…` :
+                        activeRun?.phase === "resetting" ? "Resetting chat…" : "")}
+                    </span>
+                    {activeRun?.phase === "offline" && <button type="button"
+                      onClick={() => activeChatId && runtimeChat.retry(activeChatId)}>Retry response</button>}
+                    {(activeRun?.phase === "running" || activeRun?.phase === "offline") && <button type="button"
+                      onClick={() => activeChatId && void runtimeChat.cancel(activeChatId)}>Stop response</button>}
+                    {activeChat?.messages.length ? <button type="button" disabled={activeRun?.phase === "resetting"}
+                      onClick={() => void resetChat()}>Reset chat</button> : null}
+                  </div>
                   <form className="composer" onSubmit={sendMessage}>
                     <label className="sr-only" htmlFor="message-input">
                       Message Loke
@@ -672,6 +719,7 @@ export default function Workspace() {
                       }}
                       placeholder="Ask anything"
                       rows={2}
+                      maxLength={4000}
                     />
                     <div className="composer-actions">
                       <div className="composer-left">
@@ -701,6 +749,7 @@ export default function Workspace() {
                             className="send-button"
                             type="submit"
                             aria-label="Send message"
+                            disabled={!!chatBusy}
                           >
                             <Icon name="send" size={17} />
                           </button>
