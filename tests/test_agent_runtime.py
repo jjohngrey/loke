@@ -21,6 +21,7 @@ from loke_intelligence.agent_runtime import (
     bounded_context,
 )
 from loke_intelligence.app import create_app
+from loke_intelligence.runtime_errors import ModelFailure
 from loke_intelligence.runtime_model import OpenRouterRuntimeModel
 from loke_intelligence.runtime_tools import ToolRegistry, example_registry
 
@@ -150,10 +151,23 @@ def test_provider_error_and_budget_outcomes(monkeypatch, caplog):
     monkeypatch.setenv("OPENROUTER_API_KEY", key)
 
     async def scenario():
-        result = await finish(engine(FakeModel(RuntimeError(f"Request rejected: {key}"))).reserve("owner", request()))
+        secret = "private-prompt-or-upstream-credential"
+        runtime = engine(FakeModel(RuntimeError(f"Request rejected: {key} {secret}")))
+        run = runtime.reserve("owner", request())
+        result = await finish(run)
         assert result.reason == "provider_error" and result.status == "failed"
-        assert key not in result.text and key not in caplog.text
-        assert "[redacted API key]" in result.text
+        assert result.text == ModelFailure.MESSAGES["unknown"]
+        observable = (result.model_dump_json() + caplog.text
+                      + json.dumps([event.model_dump(mode="json") for event in run.events])
+                      + json.dumps(runtime.store.session("owner", "chat").conversation))
+        assert key not in observable and secret not in observable
+        diagnostic = caplog.records[-1].runtime_diagnostic
+        assert diagnostic["exception_type"] == "RuntimeError"
+        assert diagnostic["run_id"] == run.run_id
+        assert diagnostic["model_calls"] == 1 and diagnostic["tool_calls"] == 0
+        assert diagnostic["frames"][-1]["function"] == "complete"
+        assert diagnostic["elapsed_ms"] >= 0
+        assert caplog.records[-1].exc_info is None
         model = FakeModel(ModelReply(tool_calls=[call()]), ModelReply("Still calling", [call(call_id="again")]))
         result = await finish(engine(model, model_calls=2, total_calls=3).reserve("owner", request()))
         assert result.status == "failed" and result.reason == "tool_budget"
@@ -406,7 +420,7 @@ def test_example_schema_is_strict():
 
 
 @pytest.mark.parametrize("streamed", [True, False])
-def test_unread_http_error_always_finishes_run(monkeypatch, streamed):
+def test_unread_http_error_always_finishes_run(monkeypatch, caplog, streamed):
     monkeypatch.setenv("OPENROUTER_API_KEY", "offline-test-key")
 
     class ErrorBody(httpx.AsyncByteStream):
@@ -424,12 +438,119 @@ def test_unread_http_error_always_finishes_run(monkeypatch, streamed):
         run = engine(model).reserve("owner", request())
         outcome = await asyncio.wait_for(finish(run), 1)
         assert outcome.status == "failed" and outcome.reason == "provider_error"
-        assert "404" in outcome.text
+        category = "routing" if streamed else "unknown"
+        assert outcome.text == ModelFailure.MESSAGES[category]
         assert "offline-test-key" not in outcome.text
         if streamed:
-            assert "No matching endpoint" in outcome.text
+            assert caplog.records[-1].runtime_diagnostic["http_status"] == 404
+        assert "No matching endpoint" not in outcome.text + caplog.text
+        assert "offline-test-key" not in caplog.text
         events = [event async for event in run.stream()]
         assert events[-1].outcome == outcome
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("status, category", [
+    (400, "rejected"), (401, "authentication"), (402, "credits"), (403, "authentication"),
+    (404, "routing"), (408, "timeout"), (429, "rate_limit"), (500, "unavailable"),
+    (503, "unavailable"), (504, "timeout"),
+])
+def test_provider_failures_have_safe_messages_and_structured_diagnostics(monkeypatch, caplog, status, category):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "configured-secret")
+    monkeypatch.setenv("TEXT_MODEL", "meta/muse-wonder")
+    monkeypatch.setenv("OPENROUTER_PROVIDER", "Meta")
+    secret = "upstream-secret-and-private-prompt"
+
+    async def scenario():
+        adapter = OpenRouterRuntimeModel(httpx.MockTransport(lambda req: httpx.Response(
+            status, headers={"x-request-id": "req_123"},
+            json={"error": {"code": status, "message": f"configured-secret Bearer {secret}",
+                            "metadata": {"raw": secret}}},
+        )))
+        runtime = engine(adapter)
+        run = runtime.reserve("owner", request())
+        outcome = await finish(run)
+        assert outcome.reason == "provider_error"
+        assert outcome.text == ModelFailure.MESSAGES[category]
+        diagnostic = caplog.records[-1].runtime_diagnostic
+        assert diagnostic["category"] == category
+        assert diagnostic["http_status"] == diagnostic["provider_error_code"] == status
+        assert diagnostic["provider_request_id"] == "req_123"
+        assert diagnostic["model"] == "meta/muse-wonder" and diagnostic["provider"] == "Meta"
+        assert diagnostic["tools_enabled"] is True
+        assert diagnostic["require_parameters"] is True and diagnostic["data_collection"] == "deny"
+        assert diagnostic["retry_count"] == 0 and diagnostic["max_tokens"] == 1500
+        assert diagnostic["model_elapsed_ms"] >= 0
+        assert diagnostic["run_id"] == run.run_id and diagnostic["frames"]
+        observable = caplog.text + outcome.model_dump_json() + json.dumps(
+            runtime.store.session("owner", "chat").conversation)
+        assert secret not in observable and "configured-secret" not in observable
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure, category", [
+    (httpx.ReadTimeout("private transport detail"), "timeout"),
+    (httpx.ConnectError("private transport detail"), "transport"),
+])
+def test_provider_transport_failures_keep_diagnostics_without_exception_text(monkeypatch, caplog, failure, category):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "configured-secret")
+
+    def transport(req):
+        raise failure
+
+    async def scenario():
+        outcome = await finish(engine(OpenRouterRuntimeModel(httpx.MockTransport(transport))).reserve("owner", request()))
+        assert outcome.text == ModelFailure.MESSAGES[category]
+        assert caplog.records[-1].runtime_diagnostic["category"] == category
+        assert caplog.records[-1].runtime_diagnostic["cause_type"] == type(failure).__name__
+        assert caplog.records[-1].runtime_diagnostic["frames"][-1]["function"] == "transport"
+        assert "private transport detail" not in outcome.text + caplog.text
+    asyncio.run(scenario())
+
+
+def test_provider_diagnostic_fields_are_bounded_and_do_not_copy_arbitrary_metadata(monkeypatch, caplog):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "configured-secret")
+    monkeypatch.setenv("TEXT_MODEL", "invalid model with private text")
+    monkeypatch.setenv("OPENROUTER_PROVIDER", "configured-secret")
+
+    async def scenario():
+        for request_id in ("configured-secret", "id" * 100, "Bearer private-token"):
+            adapter = OpenRouterRuntimeModel(httpx.MockTransport(lambda req: httpx.Response(
+                404, headers={"x-request-id": request_id},
+                json={"error": {"code": "private-error-code", "message": "private body"}},
+            )))
+            outcome = await finish(engine(adapter).reserve("owner", request()))
+            assert outcome.text == ModelFailure.MESSAGES["routing"]
+            diagnostic = caplog.records[-1].runtime_diagnostic
+            assert "provider_request_id" not in diagnostic and "provider_error_code" not in diagnostic
+            assert diagnostic["model"] == diagnostic["provider"] == "[omitted]"
+        assert all(value not in caplog.text for value in (
+            "configured-secret", "private-token", "private-error-code", "private body", "invalid model",
+        ))
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("body", [b"private malformed JSON", b'{"choices": []}',
+                                  b'{"choices": [{"finish_reason": "length"}]}'])
+def test_invalid_provider_response_has_controlled_failure(monkeypatch, caplog, body):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "configured-secret")
+
+    async def scenario():
+        adapter = OpenRouterRuntimeModel(httpx.MockTransport(lambda req: httpx.Response(200, content=body)))
+        outcome = await finish(engine(adapter).reserve("owner", request()))
+        assert outcome.text == ModelFailure.MESSAGES["invalid_response"]
+        assert caplog.records[-1].runtime_diagnostic["category"] == "invalid_response"
+        assert "private malformed JSON" not in outcome.text + caplog.text
+    asyncio.run(scenario())
+
+
+def test_missing_provider_credentials_have_controlled_failure(monkeypatch, caplog):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+    async def scenario():
+        outcome = await finish(engine(OpenRouterRuntimeModel()).reserve("owner", request()))
+        assert outcome.text == ModelFailure.MESSAGES["configuration"]
+        assert caplog.records[-1].runtime_diagnostic["category"] == "configuration"
     asyncio.run(scenario())
 
 

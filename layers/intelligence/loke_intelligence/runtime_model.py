@@ -3,10 +3,13 @@
 import asyncio
 import json
 import os
+import re
+import time
 
 import httpx
 
 from .agent_runtime import ModelReply, ModelToolCall
+from .runtime_errors import ModelFailure
 
 
 class DemoRuntimeModel:
@@ -36,9 +39,37 @@ class OpenRouterRuntimeModel:
         self.transport = transport
 
     async def complete(self, messages, tools, *, tools_enabled, output_chars):
+        started = time.monotonic()
+        diagnostics = {
+            "model": os.getenv("TEXT_MODEL", "openai/gpt-4.1-mini"),
+            "provider": os.getenv("OPENROUTER_PROVIDER", "OpenAI"),
+            "tools_enabled": tools_enabled, "max_tokens": min(1500, output_chars),
+            "require_parameters": True, "data_collection": "deny", "retry_count": 0,
+        }
+        key = os.getenv("OPENROUTER_API_KEY", "").strip()
+        # These are configuration identifiers, never free-form provider diagnostics.
+        for name in ("model", "provider"):
+            value = diagnostics[name]
+            if not re.fullmatch(r"[A-Za-z0-9._:/-]{1,128}", value) or (key and key in value):
+                diagnostics[name] = "[omitted]"
+        try:
+            return await self._complete(messages, tools, tools_enabled=tools_enabled,
+                                        output_chars=output_chars, diagnostics=diagnostics)
+        except ModelFailure as exc:
+            failure = exc
+        except httpx.TimeoutException as exc:
+            failure = ModelFailure("timeout", cause_type=type(exc).__name__).with_traceback(exc.__traceback__)
+        except httpx.RequestError as exc:
+            failure = ModelFailure("transport", cause_type=type(exc).__name__).with_traceback(exc.__traceback__)
+        except (ValueError, TypeError, KeyError, IndexError, OverflowError, AttributeError) as exc:
+            failure = ModelFailure("invalid_response", cause_type=type(exc).__name__).with_traceback(exc.__traceback__)
+        failure.diagnostics.update(diagnostics, model_elapsed_ms=int((time.monotonic() - started) * 1000))
+        raise failure from None
+
+    async def _complete(self, messages, tools, *, tools_enabled, output_chars, diagnostics):
         key = os.getenv("OPENROUTER_API_KEY", "").strip()
         if not key:
-            raise ValueError("Runtime model access requires OPENROUTER_API_KEY.")
+            raise ModelFailure("configuration")
         payload = {
             "model": os.getenv("TEXT_MODEL", "openai/gpt-4.1-mini"),
             "messages": messages, "tools": tools,
@@ -52,31 +83,41 @@ class OpenRouterRuntimeModel:
                 "POST", "https://openrouter.ai/api/v1/chat/completions",
                 headers={"Authorization": f"Bearer {key}"}, json=payload,
             ) as response:
+                diagnostics["http_status"] = response.status_code
+                request_id = response.headers.get("x-request-id", "")
+                if re.fullmatch(r"[A-Za-z0-9_-]{1,128}", request_id) and key not in request_id:
+                    diagnostics["provider_request_id"] = request_id
                 body = bytearray()
                 async for chunk in response.aiter_bytes():
                     body.extend(chunk)
                     if len(body) > 64000:
-                        raise ValueError("Model response exceeds the transport limit.")
+                        raise ModelFailure("response_size")
                 if not response.is_success:
-                    # Keep the bounded body readable after the transport stream closes.
-                    httpx.Response(
-                        response.status_code, content=bytes(body), request=response.request,
-                    ).raise_for_status()
+                    # Only numeric provider codes are admitted; messages and metadata can
+                    # contain credentials, request content, and arbitrary upstream bodies.
+                    try:
+                        error = json.loads(body).get("error", {})
+                        code = error.get("code") if isinstance(error, dict) else None
+                        if type(code) is int and 100 <= code <= 599:
+                            diagnostics["provider_error_code"] = code
+                    except (ValueError, AttributeError):
+                        pass
+                    raise ModelFailure.from_status(response.status_code)
         data = json.loads(body)
         choice = data["choices"][0]
         if choice.get("finish_reason") not in {"stop", "tool_calls"}:
-            raise ValueError("Model response was incomplete.")
+            raise ModelFailure("invalid_response")
         message = choice["message"]
         content = message.get("content") or ""
         if not isinstance(content, str):
-            raise ValueError("Model content must be text.")
+            raise ModelFailure("invalid_response")
         calls = []
         for call in message.get("tool_calls") or []:
             function = call["function"]
             if call.get("type") != "function" or not all(isinstance(value, str) for value in (
                 call["id"], function["name"], function["arguments"],
             )):
-                raise ValueError("Malformed model tool call.")
+                raise ModelFailure("invalid_response")
             calls.append(ModelToolCall(call["id"], function["name"], function["arguments"]))
         usage = data.get("usage") or {}
         return ModelReply(content, calls, int(usage.get("prompt_tokens", 0)),
