@@ -86,6 +86,57 @@ export type Text3 = string;
 export type Provenance = "audio_transcription";
 export type Saved = false;
 export type Detail = string;
+export type SessionId = string;
+export type SessionEpoch = number;
+export type RequestId3 = string;
+export type Text4 = string;
+export type SessionId1 = string;
+export type SessionEpoch1 = number;
+export type RequestId4 = string;
+export type SessionId2 = string;
+export type SessionEpoch2 = number;
+export type SessionId3 = string;
+export type SessionEpoch3 = number;
+export type RunId = string;
+export type Status1 = "running" | "completed" | "failed" | "cancelled";
+export type ModelCalls = number;
+export type ToolCalls = number;
+export type TotalCalls = number;
+export type DeadlineSeconds = number;
+export type ContextChars = number;
+export type OutputChars = number;
+export type ResultChars = number;
+export type MaxFailures = number;
+export type RunId1 = string;
+export type RequestId5 = string;
+export type SessionEpoch4 = number;
+export type Sequence = number;
+export type Type = "progress" | "message_delta" | "element" | "outcome";
+export type CallId = string | null;
+export type Message = string | null;
+export type Question = string;
+/**
+ * @minItems 3
+ * @maxItems 5
+ */
+export type Choices =
+  [Choice, Choice, Choice] | [Choice, Choice, Choice, Choice] | [Choice, Choice, Choice, Choice, Choice];
+export type Id4 = string;
+export type Text5 = string;
+export type Type1 = "multiple_choice";
+export type ElementId = string;
+export type RunId2 = string;
+export type RequestId6 = string;
+export type SessionEpoch5 = number;
+export type Status2 = "completed" | "failed" | "cancelled";
+export type Text6 = string;
+export type Elements = MultipleChoiceElement[];
+export type Reason1 = string | null;
+export type ModelCalls1 = number;
+export type ToolCalls1 = number;
+export type PromptTokens = number;
+export type CompletionTokens = number;
+export type ElapsedMs = number;
 
 export interface ContractBundle {
   goal: GoalInput;
@@ -98,6 +149,14 @@ export interface ContractBundle {
   proposal: TopicProposal;
   transcription: TranscriptionResult;
   error: ApiError;
+  runtime_request: RuntimeRequest;
+  runtime_control: RuntimeControl;
+  runtime_reset: RuntimeReset;
+  runtime_reset_result: RuntimeResetResult;
+  runtime_cancel_result: RuntimeCancelResult;
+  run_limits: RunLimits;
+  run_event: RunEvent;
+  run_outcome: RunOutcome;
 }
 export interface GoalInput {
   request_id: RequestId;
@@ -218,4 +277,75 @@ export interface TranscriptionResult {
 }
 export interface ApiError {
   detail: Detail;
+}
+export interface RuntimeRequest {
+  session_id: SessionId;
+  session_epoch?: SessionEpoch;
+  request_id: RequestId3;
+  text: Text4;
+}
+export interface RuntimeControl {
+  session_id: SessionId1;
+  session_epoch: SessionEpoch1;
+  request_id: RequestId4;
+}
+export interface RuntimeReset {
+  session_id: SessionId2;
+  session_epoch: SessionEpoch2;
+}
+export interface RuntimeResetResult {
+  session_id: SessionId3;
+  session_epoch: SessionEpoch3;
+}
+export interface RuntimeCancelResult {
+  run_id: RunId;
+  status: Status1;
+}
+export interface RunLimits {
+  model_calls?: ModelCalls;
+  tool_calls?: ToolCalls;
+  total_calls?: TotalCalls;
+  deadline_seconds?: DeadlineSeconds;
+  context_chars?: ContextChars;
+  output_chars?: OutputChars;
+  result_chars?: ResultChars;
+  max_failures?: MaxFailures;
+}
+export interface RunEvent {
+  run_id: RunId1;
+  request_id: RequestId5;
+  session_epoch: SessionEpoch4;
+  sequence: Sequence;
+  type: Type;
+  call_id?: CallId;
+  message?: Message;
+  element?: MultipleChoiceElement | null;
+  outcome?: RunOutcome | null;
+}
+export interface MultipleChoiceElement {
+  question: Question;
+  choices: Choices;
+  type?: Type1;
+  element_id: ElementId;
+}
+export interface Choice {
+  id: Id4;
+  text: Text5;
+}
+export interface RunOutcome {
+  run_id: RunId2;
+  request_id: RequestId6;
+  session_epoch: SessionEpoch5;
+  status: Status2;
+  text: Text6;
+  elements?: Elements;
+  reason?: Reason1;
+  usage: RunUsage;
+}
+export interface RunUsage {
+  model_calls?: ModelCalls1;
+  tool_calls?: ToolCalls1;
+  prompt_tokens?: PromptTokens;
+  completion_tokens?: CompletionTokens;
+  elapsed_ms?: ElapsedMs;
 }
