@@ -7,7 +7,7 @@ import logging
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Callable, Protocol
 from uuid import uuid4
 
 from loke_contracts.runtime import (
@@ -50,11 +50,13 @@ class ModelReply:
     tool_calls: list[ModelToolCall] = field(default_factory=list)
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    text_streamed: bool = False
 
 
 class ModelAdapter(Protocol):
     async def complete(self, messages: list[dict], tools: list[dict], *,
-                       tools_enabled: bool, output_chars: int) -> ModelReply: ...
+                       tools_enabled: bool, output_chars: int,
+                       on_text_delta: Callable[[str], None] | None = None) -> ModelReply: ...
 
 
 class RuntimeConflict(ValueError):
@@ -230,6 +232,7 @@ class AgentRuntime:
         model_failure = None
         failures = 0
         used_call_ids: set[str] = set()
+        in_flight_stream_delta = ""
 
         def current():
             if run.cancelled or run.session_epoch != session.epoch:
@@ -262,14 +265,44 @@ class AgentRuntime:
                             reason = "output_budget"
                             break
                         run.usage.model_calls += 1
+
+                        streamed_content = []
+                        streamed_delta = []
+                        stream_overflow = False
+
+                        def publish_text_delta(fragment):
+                            nonlocal stream_overflow, in_flight_stream_delta
+                            streamed_content.append(fragment)
+                            if stream_overflow:
+                                return
+                            available = max(0, run.limits.output_chars - len(text) - len(streamed_delta))
+                            prefix = "\n" if available and text and not streamed_delta else ""
+                            visible = fragment[:max(0, available - len(prefix))]
+                            if visible or prefix:
+                                delta = prefix + visible
+                                streamed_delta.append(delta)
+                                in_flight_stream_delta += delta
+                                run.publish("message_delta", message=delta)
+                            if visible != fragment:
+                                stream_overflow = True
+
                         reply = await bounded_call(self.model.complete(
                             messages, declarations, tools_enabled=not finalizing,
-                            output_chars=remaining,
+                            output_chars=remaining, on_text_delta=publish_text_delta,
                         ), run.limits.deadline_seconds - (time.monotonic() - started))
                         current()
                         run.usage.prompt_tokens += max(0, reply.prompt_tokens)
                         run.usage.completion_tokens += max(0, reply.completion_tokens)
-                        if len(reply.text) + len(text) + bool(text) > run.limits.output_chars:
+                        if reply.text_streamed:
+                            text += in_flight_stream_delta
+                            in_flight_stream_delta = ""
+                            if stream_overflow:
+                                reason = "output_budget"
+                                break
+                            if "".join(streamed_content) != reply.text:
+                                raise ModelFailure("invalid_response")
+                        if (not reply.text_streamed
+                                and len(reply.text) + len(text) + bool(text) > run.limits.output_chars):
                             reason = "output_budget"
                             break
                         if len(reply.tool_calls) > run.limits.tool_calls:
@@ -285,7 +318,7 @@ class AgentRuntime:
                             reason = "invalid_tool_call_ids"
                             break
                         used_call_ids.update(ids)
-                        if reply.text:
+                        if reply.text and not reply.text_streamed:
                             delta = ("\n" if text else "") + reply.text
                             text += delta
                             run.publish("message_delta", message=delta)
@@ -351,6 +384,9 @@ class AgentRuntime:
             logger.error("runtime_request_failed %s", json.dumps(diagnostic, sort_keys=True),
                          extra={"runtime_diagnostic": diagnostic})
             reason = "provider_error"
+        if in_flight_stream_delta:
+            text += in_flight_stream_delta
+            in_flight_stream_delta = ""
         if reason and status != "cancelled":
             status = "failed"
         if reason:

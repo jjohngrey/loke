@@ -5,15 +5,26 @@ import json
 import os
 import re
 import time
+from typing import Callable
 
 import httpx
 
 from .agent_runtime import ModelReply, ModelToolCall
 from .runtime_errors import ModelFailure
 
+_KNOWN_FINISH_REASONS = {"stop", "tool_calls", "length", "content_filter", "function_call"}
+
+
+def _safe_finish_reason(value):
+    if value is None:
+        return "missing"
+    if isinstance(value, str) and value in _KNOWN_FINISH_REASONS:
+        return value
+    return "other"
+
 
 class DemoRuntimeModel:
-    async def complete(self, messages, tools, *, tools_enabled, output_chars):
+    async def complete(self, messages, tools, *, tools_enabled, output_chars, on_text_delta=None):
         await asyncio.sleep(0.25)
         if messages[-1]["role"] == "tool":
             result = json.loads(messages[-1]["content"])
@@ -38,7 +49,7 @@ class OpenRouterRuntimeModel:
     def __init__(self, transport: httpx.AsyncBaseTransport | None = None):
         self.transport = transport
 
-    async def complete(self, messages, tools, *, tools_enabled, output_chars):
+    async def complete(self, messages, tools, *, tools_enabled, output_chars, on_text_delta=None):
         started = time.monotonic()
         diagnostics = {
             "model": os.getenv("TEXT_MODEL", "openai/gpt-4.1-mini"),
@@ -54,7 +65,8 @@ class OpenRouterRuntimeModel:
                 diagnostics[name] = "[omitted]"
         try:
             return await self._complete(messages, tools, tools_enabled=tools_enabled,
-                                        output_chars=output_chars, diagnostics=diagnostics)
+                                        output_chars=output_chars, diagnostics=diagnostics,
+                                        on_text_delta=on_text_delta)
         except ModelFailure as exc:
             failure = exc
         except httpx.TimeoutException as exc:
@@ -66,7 +78,8 @@ class OpenRouterRuntimeModel:
         failure.diagnostics.update(diagnostics, model_elapsed_ms=int((time.monotonic() - started) * 1000))
         raise failure from None
 
-    async def _complete(self, messages, tools, *, tools_enabled, output_chars, diagnostics):
+    async def _complete(self, messages, tools, *, tools_enabled, output_chars, diagnostics,
+                        on_text_delta: Callable[[str], None] | None = None):
         key = os.getenv("OPENROUTER_API_KEY", "").strip()
         if not key:
             raise ModelFailure("configuration")
@@ -74,7 +87,8 @@ class OpenRouterRuntimeModel:
             "model": os.getenv("TEXT_MODEL", "openai/gpt-4.1-mini"),
             "messages": messages, "tools": tools,
             "tool_choice": "auto" if tools_enabled else "none",
-            "max_tokens": min(1500, output_chars), "stream": False,
+            "max_tokens": min(1500, output_chars), "stream": True,
+            "stream_options": {"include_usage": True},
             "provider": {"require_parameters": True, "data_collection": "deny",
                          "only": [os.getenv("OPENROUTER_PROVIDER", "OpenAI")]},
         }
@@ -87,12 +101,12 @@ class OpenRouterRuntimeModel:
                 request_id = response.headers.get("x-request-id", "")
                 if re.fullmatch(r"[A-Za-z0-9_-]{1,128}", request_id) and key not in request_id:
                     diagnostics["provider_request_id"] = request_id
-                body = bytearray()
-                async for chunk in response.aiter_bytes():
-                    body.extend(chunk)
-                    if len(body) > 64000:
-                        raise ModelFailure("response_size")
                 if not response.is_success:
+                    body = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        body.extend(chunk)
+                        if len(body) > 64000:
+                            raise ModelFailure("response_size")
                     # Only numeric provider codes are admitted; messages and metadata can
                     # contain credentials, request content, and arbitrary upstream bodies.
                     try:
@@ -103,22 +117,157 @@ class OpenRouterRuntimeModel:
                     except (ValueError, AttributeError):
                         pass
                     raise ModelFailure.from_status(response.status_code)
-        data = json.loads(body)
-        choice = data["choices"][0]
-        if choice.get("finish_reason") not in {"stop", "tool_calls"}:
-            raise ModelFailure("invalid_response")
-        message = choice["message"]
-        content = message.get("content") or ""
-        if not isinstance(content, str):
-            raise ModelFailure("invalid_response")
-        calls = []
-        for call in message.get("tool_calls") or []:
-            function = call["function"]
-            if call.get("type") != "function" or not all(isinstance(value, str) for value in (
-                call["id"], function["name"], function["arguments"],
-            )):
-                raise ModelFailure("invalid_response")
-            calls.append(ModelToolCall(call["id"], function["name"], function["arguments"]))
-        usage = data.get("usage") or {}
-        return ModelReply(content, calls, int(usage.get("prompt_tokens", 0)),
-                          int(usage.get("completion_tokens", 0)))
+
+                content = []
+                tool_deltas = {}
+                prompt_tokens = completion_tokens = 0
+                finish_reason = None
+                stream_bytes = 0
+                done_received = False
+                data_events = choice_chunks = text_deltas = tool_call_deltas = 0
+                usage_received = False
+                if "application/json" in response.headers.get("content-type", ""):
+                    response_format = "json"
+                    body = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        body.extend(chunk)
+                        if len(body) > 64000:
+                            raise ModelFailure("response_size")
+                    data = json.loads(body)
+                    usage = data.get("usage")
+                    if isinstance(usage, dict):
+                        usage_received = True
+                        prompt_tokens = usage.get("prompt_tokens", prompt_tokens)
+                        completion_tokens = usage.get("completion_tokens", completion_tokens)
+                    choices = data.get("choices") or []
+                    if len(choices) != 1 or not isinstance(choices[0], dict):
+                        raise ModelFailure("invalid_response")
+                    choice = choices[0]
+                    choice_chunks = 1
+                    finish_reason = choice.get("finish_reason")
+                    message = choice.get("message") or {}
+                    if not isinstance(message, dict):
+                        raise ModelFailure("invalid_response")
+                    fragment = message.get("content") or ""
+                    if not isinstance(fragment, str):
+                        raise ModelFailure("invalid_response")
+                    content.append(fragment)
+                    text_deltas = int(bool(fragment))
+                    if on_text_delta and fragment:
+                        on_text_delta(fragment)
+                    for index, call in enumerate(message.get("tool_calls") or []):
+                        tool_call_deltas += 1
+                        if not isinstance(call, dict):
+                            raise ModelFailure("invalid_response")
+                        function = call.get("function") or {}
+                        if not isinstance(function, dict):
+                            raise ModelFailure("invalid_response")
+                        call_id = call.get("id")
+                        name = function.get("name")
+                        arguments = function.get("arguments")
+                        if (call.get("type") != "function" or not isinstance(call_id, str)
+                                or not isinstance(name, str) or not isinstance(arguments, str)):
+                            raise ModelFailure("invalid_response")
+                        tool_deltas[index] = {
+                            "id": call_id, "type": "function", "name": name,
+                            "arguments": arguments,
+                        }
+                else:
+                    response_format = "sse"
+                    async for line in response.aiter_lines():
+                        stream_bytes += len(line.encode("utf-8")) + 1
+                        if stream_bytes > 64000:
+                            raise ModelFailure("response_size")
+                        if not line.startswith("data:"):
+                            continue
+                        data_line = line[5:].strip()
+                        if not data_line:
+                            continue
+                        if data_line == "[DONE]":
+                            done_received = True
+                            break
+                        data_events += 1
+                        data = json.loads(data_line)
+                        usage = data.get("usage")
+                        if isinstance(usage, dict):
+                            usage_received = True
+                            prompt_tokens = usage.get("prompt_tokens", prompt_tokens)
+                            completion_tokens = usage.get("completion_tokens", completion_tokens)
+                        choices = data.get("choices") or []
+                        if not choices:
+                            continue
+                        if len(choices) != 1 or not isinstance(choices[0], dict):
+                            raise ModelFailure("invalid_response")
+                        choice = choices[0]
+                        choice_chunks += 1
+                        if choice.get("finish_reason") is not None:
+                            finish_reason = choice["finish_reason"]
+                        delta = choice.get("delta") or {}
+                        if not isinstance(delta, dict):
+                            raise ModelFailure("invalid_response")
+                        fragment = delta.get("content")
+                        if fragment is not None:
+                            if not isinstance(fragment, str):
+                                raise ModelFailure("invalid_response")
+                            content.append(fragment)
+                            text_deltas += int(bool(fragment))
+                            if on_text_delta and fragment:
+                                on_text_delta(fragment)
+                        for tool_delta in delta.get("tool_calls") or []:
+                            tool_call_deltas += 1
+                            if not isinstance(tool_delta, dict):
+                                raise ModelFailure("invalid_response")
+                            index = tool_delta.get("index")
+                            if type(index) is not int or index < 0 or index > 16:
+                                raise ModelFailure("invalid_response")
+                            partial = tool_deltas.setdefault(index, {
+                                "id": "", "type": None, "name": "", "arguments": "",
+                            })
+                            call_id = tool_delta.get("id")
+                            call_type = tool_delta.get("type")
+                            if call_id is not None:
+                                if not isinstance(call_id, str):
+                                    raise ModelFailure("invalid_response")
+                                partial["id"] += call_id
+                            if call_type is not None:
+                                if not isinstance(call_type, str):
+                                    raise ModelFailure("invalid_response")
+                                partial["type"] = call_type
+                            function = tool_delta.get("function") or {}
+                            if not isinstance(function, dict):
+                                raise ModelFailure("invalid_response")
+                            for field in ("name", "arguments"):
+                                value = function.get(field)
+                                if value is not None:
+                                    if not isinstance(value, str):
+                                        raise ModelFailure("invalid_response")
+                                    partial[field] += value
+                finish_reason_label = _safe_finish_reason(finish_reason)
+                diagnostics.update({
+                    "response_format": response_format,
+                    "response_bytes": len(body) if response_format == "json" else stream_bytes,
+                    "sse_data_events": data_events,
+                    "choice_chunks": choice_chunks,
+                    "text_delta_count": text_deltas,
+                    "content_chars": sum(map(len, content)),
+                    "tool_call_deltas": tool_call_deltas,
+                    "tool_call_count": len(tool_deltas),
+                    "finish_reason": finish_reason_label,
+                    "finish_reason_state": "recognized" if finish_reason_label in _KNOWN_FINISH_REASONS
+                    else finish_reason_label,
+                    "stream_done": done_received if response_format == "sse" else None,
+                    "usage_received": usage_received,
+                })
+                if finish_reason not in {"stop", "tool_calls"}:
+                    raise ModelFailure("invalid_response")
+                calls = []
+                for index in sorted(tool_deltas):
+                    call = tool_deltas[index]
+                    if call["type"] != "function" or not call["id"] or not call["name"]:
+                        raise ModelFailure("invalid_response")
+                    calls.append(ModelToolCall(call["id"], call["name"], call["arguments"]))
+                if (type(prompt_tokens) is not int or prompt_tokens < 0
+                        or type(completion_tokens) is not int or completion_tokens < 0):
+                    raise ModelFailure("invalid_response")
+                return ModelReply("".join(content), calls, prompt_tokens, completion_tokens,
+                                  text_streamed=on_text_delta is not None)
