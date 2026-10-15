@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { ChatMarkdown } from "./chat-markdown";
 import { useRuntimeChat } from "./use-runtime-chat";
 import { RuntimeElement } from "./runtime-elements";
 import type { RuntimeDisplay } from "./runtime-client";
@@ -666,7 +667,8 @@ export default function Workspace() {
                           <div className="message-content">
                             {message.runtime
                               ? message.runtime.blocks.map((block) => block.kind === "text" ? (
-                                <p key={block.id}>{block.text}</p>
+                                <ChatMarkdown key={block.id} text={block.text}
+                                  streaming={!message.runtime?.outcome} />
                               ) : (
                                 <RuntimeElement
                                   key={block.id}
@@ -678,7 +680,9 @@ export default function Workspace() {
                                   )}
                                 />
                               ))
-                              : message.text && <p>{message.text}</p>}
+                              : message.text && (message.role === "loke"
+                                ? <ChatMarkdown text={message.text} />
+                                : <p>{message.text}</p>)}
                           </div>
                         </article>
                       ))}
