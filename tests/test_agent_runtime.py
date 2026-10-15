@@ -145,11 +145,15 @@ def test_data_only_results_and_sequential_tools():
     asyncio.run(scenario())
 
 
-def test_provider_error_and_budget_outcomes():
+def test_provider_error_and_budget_outcomes(monkeypatch, caplog):
+    key = "test-error-credential"
+    monkeypatch.setenv("OPENROUTER_API_KEY", key)
+
     async def scenario():
-        result = await finish(engine(FakeModel(RuntimeError("secret"))).reserve("owner", request()))
+        result = await finish(engine(FakeModel(RuntimeError(f"Request rejected: {key}"))).reserve("owner", request()))
         assert result.reason == "provider_error" and result.status == "failed"
-        assert "secret" not in result.text
+        assert key not in result.text and key not in caplog.text
+        assert "[redacted API key]" in result.text
         model = FakeModel(ModelReply(tool_calls=[call()]), ModelReply("Still calling", [call(call_id="again")]))
         result = await finish(engine(model, model_calls=2, total_calls=3).reserve("owner", request()))
         assert result.status == "failed" and result.reason == "tool_budget"
@@ -363,12 +367,18 @@ def test_authenticated_stream_replay_conflict_and_reset(tmp_path, monkeypatch):
 
 def test_real_provider_adapter_tool_transcript_and_sanitized_errors(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-provider-token")
+    monkeypatch.setenv("TEXT_MODEL", "meta/muse-wonder")
+    monkeypatch.setenv("OPENROUTER_PROVIDER", "Meta")
     requests = []
 
     def transport(req):
         body = json.loads(req.content)
         requests.append(body)
         assert req.headers["authorization"] == "Bearer test-provider-token"
+        assert "parallel_tool_calls" not in body
+        assert body["provider"] == {
+            "require_parameters": True, "data_collection": "deny", "only": ["Meta"],
+        }
         if len(requests) == 1:
             message = {"role": "assistant", "content": "Before tool", "tool_calls": [call().message()]}
         else:
@@ -393,3 +403,52 @@ def test_real_provider_adapter_tool_transcript_and_sanitized_errors(monkeypatch)
 def test_example_schema_is_strict():
     assert MultipleChoiceInput.model_json_schema()["additionalProperties"] is False
     assert MultipleChoiceOutput.model_json_schema()["additionalProperties"] is False
+
+
+@pytest.mark.parametrize("streamed", [True, False])
+def test_unread_http_error_always_finishes_run(monkeypatch, streamed):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "offline-test-key")
+
+    class ErrorBody(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield b'{"error":{"message":"No matching endpoint: offline-test-key"}}'
+
+    async def scenario():
+        response = httpx.Response(
+            404, request=httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions"),
+            stream=ErrorBody(),
+        )
+        model = (OpenRouterRuntimeModel(httpx.MockTransport(lambda req: response)) if streamed
+                 else FakeModel(httpx.HTTPStatusError("HTTP 404", request=response.request,
+                                                       response=response)))
+        run = engine(model).reserve("owner", request())
+        outcome = await asyncio.wait_for(finish(run), 1)
+        assert outcome.status == "failed" and outcome.reason == "provider_error"
+        assert "404" in outcome.text
+        assert "offline-test-key" not in outcome.text
+        if streamed:
+            assert "No matching endpoint" in outcome.text
+        events = [event async for event in run.stream()]
+        assert events[-1].outcome == outcome
+    asyncio.run(scenario())
+
+
+def test_streamed_error_body_keeps_transport_size_limit(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "offline-test-key")
+    chunks = []
+
+    class LargeErrorBody(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            for index in range(3):
+                chunks.append(index)
+                yield b"x" * 40000
+
+    async def scenario():
+        adapter = OpenRouterRuntimeModel(httpx.MockTransport(
+            lambda req: httpx.Response(404, stream=LargeErrorBody()),
+        ))
+        outcome = await finish(engine(adapter).reserve("owner", request()))
+        assert outcome.status == "failed" and outcome.reason == "provider_error"
+        assert "transport limit" in outcome.text
+        assert chunks == [0, 1]
+    asyncio.run(scenario())

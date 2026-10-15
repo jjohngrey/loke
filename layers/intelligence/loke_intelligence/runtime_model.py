@@ -43,7 +43,6 @@ class OpenRouterRuntimeModel:
             "model": os.getenv("TEXT_MODEL", "openai/gpt-4.1-mini"),
             "messages": messages, "tools": tools,
             "tool_choice": "auto" if tools_enabled else "none",
-            "parallel_tool_calls": False,
             "max_tokens": min(1500, output_chars), "stream": False,
             "provider": {"require_parameters": True, "data_collection": "deny",
                          "only": [os.getenv("OPENROUTER_PROVIDER", "OpenAI")]},
@@ -53,12 +52,16 @@ class OpenRouterRuntimeModel:
                 "POST", "https://openrouter.ai/api/v1/chat/completions",
                 headers={"Authorization": f"Bearer {key}"}, json=payload,
             ) as response:
-                response.raise_for_status()
                 body = bytearray()
                 async for chunk in response.aiter_bytes():
                     body.extend(chunk)
                     if len(body) > 64000:
                         raise ValueError("Model response exceeds the transport limit.")
+                if not response.is_success:
+                    # Keep the bounded body readable after the transport stream closes.
+                    httpx.Response(
+                        response.status_code, content=bytes(body), request=response.request,
+                    ).raise_for_status()
         data = json.loads(body)
         choice = data["choices"][0]
         if choice.get("finish_reason") not in {"stop", "tool_calls"}:
