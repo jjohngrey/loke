@@ -88,10 +88,10 @@ type IconName =
   | "mic"
   | "voice"
   | "send"
+  | "stop"
   | "settings"
   | "logout"
   | "close"
-  | "spark"
   | "check";
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
@@ -145,6 +145,7 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     ),
     voice: <path d="M5 10v4m4-7v10m4-13v16m4-10v4" />,
     send: <path d="M12 19V5m-6 6 6-6 6 6" />,
+    stop: <rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" stroke="none" />,
     settings: (
       <>
         <circle cx="12" cy="12" r="3" />
@@ -158,12 +159,6 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
       </>
     ),
     close: <path d="M5 5l14 14M19 5 5 19" />,
-    spark: (
-      <>
-        <path d="m12 2 1.9 7.1L21 11l-7.1 1.9L12 20l-1.9-7.1L3 11l7.1-1.9z" />
-        <path d="m19 17 .6 2.4L22 20l-2.4.6L19 23l-.6-2.4L16 20l2.4-.6z" />
-      </>
-    ),
     check: <path d="m5 12 4 4L19 6" />,
   };
   return (
@@ -340,16 +335,23 @@ export default function Workspace() {
     setDraft("");
   }
 
+  function startNewChat() {
+    setSection("chats");
+    setActiveChatId(null);
+    setDraft("");
+    setProfileOpen(false);
+  }
+
   function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     submitChatMessage(draft.trim());
   }
 
-  function submitChatMessage(text: string) {
-    if (!text || text.length > 4000 || chatBusy) return;
+  function submitChatMessage(text: string, displayText = text) {
+    if (!text || text.length > 4000 || chatBusy) return false;
     const chatId = activeChatId || crypto.randomUUID();
-    if (!runtimeChat.submit(chatId, text)) return;
-    const message: Message = { id: crypto.randomUUID(), role: "user", text };
+    if (!runtimeChat.submit(chatId, text)) return false;
+    const message: Message = { id: crypto.randomUUID(), role: "user", text: displayText };
     if (activeChatId) {
       setChats((items) =>
         items.map((chat) =>
@@ -363,7 +365,7 @@ export default function Workspace() {
       setChats((items) => [
         {
           id,
-          title: text.length > 36 ? text.slice(0, 36).trimEnd() + "…" : text,
+          title: displayText.length > 36 ? displayText.slice(0, 36).trimEnd() + "…" : displayText,
           messages: [message],
         },
         ...items,
@@ -371,14 +373,7 @@ export default function Workspace() {
       setActiveChatId(id);
     }
     setDraft("");
-  }
-
-  async function resetChat() {
-    if (!activeChatId) return;
-    const id = activeChatId;
-    if (await runtimeChat.reset(id)) {
-      setChats((items) => items.map((chat) => chat.id === id ? { ...chat, messages: [] } : chat));
-    }
+    return true;
   }
 
   function addFolder(event: FormEvent<HTMLFormElement>) {
@@ -524,6 +519,10 @@ export default function Workspace() {
                   <Icon name="search" size={19} />
                 </button>
               </div>
+              <button className="new-chat-button" type="button" onClick={startNewChat}>
+                <Icon name="plus" size={18} />
+                <span>New chat</span>
+              </button>
               {searchOpen && (
                 <div className="search-field">
                   <Icon name="search" size={16} />
@@ -664,21 +663,39 @@ export default function Workspace() {
                           className={["message", message.role].join(" ")}
                           key={message.id}
                         >
-                          {message.role === "loke" && (
-                            <div className="message-mark" aria-label="Loke">
-                              <Icon name="spark" size={19} />
-                            </div>
-                          )}
                           <div className="message-content">
-                            {message.text && <p>{message.text}</p>}
-                            {message.runtime?.elements.map((element) => (
-                              <RuntimeElement key={`${message.runtime?.runId}/${element.element_id}`}
-                                element={element} disabled={!!chatBusy || message.runtime?.outcome?.status !== "completed"}
-                                onChoose={submitChatMessage} />
-                            ))}
+                            {message.runtime
+                              ? message.runtime.blocks.map((block) => block.kind === "text" ? (
+                                <p key={block.id}>{block.text}</p>
+                              ) : (
+                                <RuntimeElement
+                                  key={block.id}
+                                  element={block.element}
+                                  disabled={!!chatBusy || message.runtime?.outcome?.status !== "completed"}
+                                  onChoose={(choice, question) => submitChatMessage(
+                                    `Question: ${question}\nSelected choice: ${choice}`,
+                                    choice,
+                                  )}
+                                />
+                              ))
+                              : message.text && <p>{message.text}</p>}
                           </div>
                         </article>
                       ))}
+                      {activeRun?.phase === "running" && (
+                        <div className="response-status" role="status" aria-live="polite">
+                          <span className="response-indicator" aria-hidden="true" />
+                          <span>{activeRun.error || activeRun.display.progress || "Thinking"}</span>
+                        </div>
+                      )}
+                      {activeRun?.phase === "offline" && (
+                        <div className="response-status response-error" role="status" aria-live="polite">
+                          <span>{activeRun.error || "Connection lost. Retry this response."}</span>
+                          <button type="button" onClick={() => activeChatId && runtimeChat.retry(activeChatId)}>
+                            Retry
+                          </button>
+                        </div>
+                      )}
                       <div ref={messagesEndRef} />
                     </div>
                   ) : (
@@ -686,18 +703,6 @@ export default function Workspace() {
                   )}
                 </div>
                 <div className="composer-zone">
-                  <div className="runtime-controls">
-                    <span role="status" aria-live="polite">
-                      {activeRun?.error || (activeRun?.phase === "running" ? `${activeRun.display.progress}…` :
-                        activeRun?.phase === "resetting" ? "Resetting chat…" : "")}
-                    </span>
-                    {activeRun?.phase === "offline" && <button type="button"
-                      onClick={() => activeChatId && runtimeChat.retry(activeChatId)}>Retry response</button>}
-                    {(activeRun?.phase === "running" || activeRun?.phase === "offline") && <button type="button"
-                      onClick={() => activeChatId && void runtimeChat.cancel(activeChatId)}>Stop response</button>}
-                    {activeChat?.messages.length ? <button type="button" disabled={activeRun?.phase === "resetting"}
-                      onClick={() => void resetChat()}>Reset chat</button> : null}
-                  </div>
                   <form className="composer" onSubmit={sendMessage}>
                     <label className="sr-only" htmlFor="message-input">
                       Message Loke
@@ -731,9 +736,6 @@ export default function Workspace() {
                         >
                           <Icon name="plus" size={21} />
                         </button>
-                        <span className="composer-hint">
-                          Learning workspace
-                        </span>
                       </div>
                       <div className="composer-right">
                         <button
@@ -744,7 +746,17 @@ export default function Workspace() {
                         >
                           <Icon name="mic" size={20} />
                         </button>
-                        {draft.trim() ? (
+                        {activeRun?.phase === "running" || activeRun?.phase === "offline" ? (
+                          <button
+                            className="stop-button"
+                            type="button"
+                            aria-label="Stop response"
+                            title="Stop response"
+                            onClick={() => activeChatId && void runtimeChat.cancel(activeChatId)}
+                          >
+                            <Icon name="stop" size={14} />
+                          </button>
+                        ) : draft.trim() ? (
                           <button
                             className="send-button"
                             type="submit"
