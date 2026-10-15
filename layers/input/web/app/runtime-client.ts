@@ -23,7 +23,7 @@ function appendText(blocks: RuntimeBlock[], text: string, sequence: number) {
   if (last?.kind === "text") {
     return [...blocks.slice(0, -1), { ...last, text: last.text + text }];
   }
-  return [...blocks, { kind: "text", id: `text-${sequence}`, text }];
+  return [...blocks, { kind: "text" as const, id: `text-${sequence}`, text }];
 }
 
 function addElement(blocks: RuntimeBlock[], element: MultipleChoiceElement) {
@@ -53,7 +53,7 @@ export function applyRunEvent(display: RuntimeDisplay, event: RunEvent): Runtime
       blocks = appendText(blocks, finalText.slice(text.length), event.sequence);
     } else {
       let replaced = false;
-      blocks = blocks.map((block) => {
+      blocks = blocks.map<RuntimeBlock>((block) => {
         if (block.kind !== "text") return block;
         if (replaced) return { ...block, text: "" };
         replaced = true;
