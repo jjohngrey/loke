@@ -160,7 +160,14 @@ def test_http_examples_and_openapi(tmp_path, monkeypatch):
             if not path.startswith("/api/"):
                 continue
             for operation in operations.values():
-                expected = "TranscriptionResult" if path.endswith("/transcribe") else "LearningView"
+                if path == "/api/runtime/run":
+                    content = operation["responses"]["200"]["content"]
+                    assert set(content) == {"application/x-ndjson"}
+                    continue
+                expected = {
+                    "/api/runtime/cancel": "RuntimeCancelResult",
+                    "/api/runtime/reset": "RuntimeResetResult",
+                }.get(path, "TranscriptionResult" if path.endswith("/transcribe") else "LearningView")
                 success = operation["responses"]["200"]["content"]["application/json"]["schema"]
                 assert success["$ref"] == f"#/components/schemas/{expected}"
                 assert operation["responses"]["409"]["content"]["application/json"]["schema"][
