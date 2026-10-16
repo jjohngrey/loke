@@ -13,7 +13,6 @@ class ModelFailure(Exception):
         "unavailable": "The model provider is unavailable. Please try again later.",
         "rejected": "The model provider rejected the request. Check the server settings.",
         "transport": "The model provider could not be reached. Please try again.",
-        "response_size": "The model response exceeded the transport limit. Try a shorter request.",
         "invalid_response": "The model returned an invalid or incomplete response. Please try again.",
     }
 

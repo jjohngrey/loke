@@ -41,8 +41,8 @@ class ToolResult:
         return {"result": self.data} if self.error is None else {"error": self.error}
 
 
-async def bounded_call(awaitable, timeout: float):
-    """Stop waiting at the deadline even if an adapter suppresses cancellation."""
+async def bounded_call(awaitable, timeout: float | None = None):
+    """Respect cancellation and optional timeouts even if an adapter finishes late."""
     task = asyncio.create_task(awaitable)
     try:
         done, _ = await asyncio.wait({task}, timeout=timeout)
@@ -69,13 +69,16 @@ class ToolRegistry:
                     raise ValueError("Tool schemas must forbid extra fields.")
 
     def declarations(self):
-        return [
-            {"type": "function", "function": {
+        declarations = []
+        for spec in self.specs.values():
+            parameters = spec.input_schema.model_json_schema()
+            # Strict tool schemas require defaulted fields too; local validation keeps defaults.
+            parameters["required"] = list(parameters["properties"])
+            declarations.append({"type": "function", "function": {
                 "name": spec.name, "description": spec.description,
-                "strict": True, "parameters": spec.input_schema.model_json_schema(),
-            }}
-            for spec in self.specs.values()
-        ]
+                "strict": True, "parameters": parameters,
+            }})
+        return declarations
 
     async def execute(self, name, arguments, context: ToolContext, result_chars: int):
         def error(code, message):
@@ -121,7 +124,11 @@ async def multiple_choice(payload: MultipleChoiceInput, context: ToolContext):
 def example_registry():
     return ToolRegistry([ToolSpec(
         name="generate_multiple_choice_response",
-        description="Display a question with 3–5 choices. Author the question and choices yourself.",
+        description=(
+            "Prepare a question with 3–5 choices you author. Set presentation to after_response "
+            "for follow-up choices shown after the completed explanation, or inline for a "
+            "clarification or standalone question shown at the tool's position."
+        ),
         input_schema=MultipleChoiceInput,
         output_schema=MultipleChoiceOutput,
         handler=multiple_choice,

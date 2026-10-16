@@ -57,8 +57,10 @@ then select an option to send an ordinary follow-up. The demo adapter supplies f
 responses; `MODEL_MODE=live` uses server-side OpenRouter tool calling with the existing
 `OPENROUTER_API_KEY`, `TEXT_MODEL` and `OPENROUTER_PROVIDER` configuration. Live chat
 omits the completion-token cap and uses the provider/model default. Reasoning models
-can additionally use `OPENROUTER_REASONING_EFFORT` (for example, `low`). The runtime's
-28-second deadline and 6,000-character visible-output limit still apply.
+can additionally use `OPENROUTER_REASONING_EFFORT` (for example, `low`). Chat has no
+total-duration deadline or application-imposed input, context or answer character limits.
+Successful provider streams and frontend events have no cumulative size cutoff. Model-native
+context and output capacity still apply; provider truncation is reported separately.
 
 Provider failures return controlled, actionable messages. Server logs emit
 `runtime_request_failed` with the run ID, error category, HTTP status and numeric provider
@@ -81,8 +83,13 @@ The authenticated proxy exposes POST `runtime/run` (`session_id`, `session_epoch
 `RunEvent` JSON: ordered progress, text deltas, validated elements, then one terminal
 `RunOutcome` with status, reason and usage. Public text deltas append; the outcome text
 is authoritative. Cards merge by run/element ID across progress and final replay.
+The choice tool accepts `presentation`: `after_response` (the default) holds follow-up
+cards until successful completion and places them after all response text; `inline`
+shows clarification or standalone questions at the tool event's position. Text keeps
+streaming while follow-up cards wait. Failed or cancelled runs discard pending cards.
+This presentation rule does not change tool execution or observation order.
 
-Disconnect detaches the stream while the run continues within its deadline. Retry
+Disconnect detaches the stream while the run continues until completion or cancellation. Retry
 reuses the exact request and replays/attaches to that run. Stop explicitly cancels it;
 unmount also attempts cancellation. Reset rotates the session epoch, cancels old runs
 and clears conversation; stale outputs are ignored. These sessions are process-local:
@@ -90,12 +97,17 @@ backend/browser restarts lose continuity. The store keeps up to 100 session iden
 32 completed outcomes and 64 conversation groups per session, with at most eight active
 or queued runs per session. Deduplication applies within the retained outcome window.
 
-Default limits are four model calls, four tool calls, eight total calls and a 28-second
-deadline including queue time, below the proxy's 35-second timeout. The final model call
-reserves capacity to respond without more tools. Provider context includes at most
-24,000 serialized characters, text output 6,000, tool results 6,000, and each tool has
-a three-second timeout. Two tool errors trigger finalization. Limits are injected via
+Default limits are four model calls, four tool calls and eight total calls. The final model
+call reserves capacity to respond without more tools. Tool results are bounded to 6,000
+characters, and each tool has a three-second timeout. Two tool errors trigger finalization.
+Tool and call limits are injected via
 `RunLimits`; stop reasons are explicit, and diagnostics record IDs, timing/status and usage.
+The provider connection, write and pool timeouts are 20 seconds; the read inactivity timeout
+is 120 seconds and resets when network data arrives, including reasoning or heartbeat data.
+The proxy has no total-duration timer for `runtime/run`; other routes retain their 35-second
+timeout. Failure and cancellation messages use the outcome's `notice` field, rendered as
+status outside the answer. Partial answer text is preserved without adding notices to model
+history.
 
 Verify with `npm run check`, `node --test tests/test_runtime_client.mjs`, and a browser
 pass covering options → card → selection → follow-up, Stop, Reset and reconnect/Retry.

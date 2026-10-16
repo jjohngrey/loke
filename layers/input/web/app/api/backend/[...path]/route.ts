@@ -53,7 +53,9 @@ async function proxy(
           ? undefined
           : await req.arrayBuffer(),
         cache: "no-store",
-        signal: AbortSignal.any([req.signal, AbortSignal.timeout(35000)]),
+        // Chat streams run until completion or client disconnect, without a total-duration timer.
+        signal: route === "runtime/run" ? req.signal
+          : AbortSignal.any([req.signal, AbortSignal.timeout(35000)]),
       },
     );
     const streaming = upstream.headers.get("content-type")?.startsWith("application/x-ndjson");

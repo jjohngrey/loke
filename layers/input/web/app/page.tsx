@@ -349,7 +349,7 @@ export default function Workspace() {
   }
 
   function submitChatMessage(text: string, displayText = text) {
-    if (!text || text.length > 4000 || chatBusy) return false;
+    if (!text || chatBusy) return false;
     const chatId = activeChatId || crypto.randomUUID();
     if (!runtimeChat.submit(chatId, text)) return false;
     const message: Message = { id: crypto.randomUUID(), role: "user", text: displayText };
@@ -683,6 +683,11 @@ export default function Workspace() {
                               : message.text && (message.role === "loke"
                                 ? <ChatMarkdown text={message.text} />
                                 : <p>{message.text}</p>)}
+                            {message.runtime?.outcome?.notice && (
+                              <div className="response-status response-error" role="status">
+                                {message.runtime.outcome.notice}
+                              </div>
+                            )}
                           </div>
                         </article>
                       ))}
@@ -728,7 +733,6 @@ export default function Workspace() {
                       }}
                       placeholder="Ask anything"
                       rows={2}
-                      maxLength={4000}
                     />
                     <div className="composer-actions">
                       <div className="composer-left">

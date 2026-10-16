@@ -102,9 +102,6 @@ export type Status1 = "running" | "completed" | "failed" | "cancelled";
 export type ModelCalls = number;
 export type ToolCalls = number;
 export type TotalCalls = number;
-export type DeadlineSeconds = number;
-export type ContextChars = number;
-export type OutputChars = number;
 export type ResultChars = number;
 export type MaxFailures = number;
 export type RunId1 = string;
@@ -123,6 +120,10 @@ export type Choices =
   [Choice, Choice, Choice] | [Choice, Choice, Choice, Choice] | [Choice, Choice, Choice, Choice, Choice];
 export type Id4 = string;
 export type Text5 = string;
+/**
+ * Use after_response for follow-up choices that depend on the explanation: display them after the response completes successfully. Use inline for a clarification or standalone question: display it at the tool's position.
+ */
+export type Presentation = "after_response" | "inline";
 export type Type1 = "multiple_choice";
 export type ElementId = string;
 export type RunId2 = string;
@@ -132,6 +133,7 @@ export type Status2 = "completed" | "failed" | "cancelled";
 export type Text6 = string;
 export type Elements = MultipleChoiceElement[];
 export type Reason1 = string | null;
+export type Notice = string | null;
 export type ModelCalls1 = number;
 export type ToolCalls1 = number;
 export type PromptTokens = number;
@@ -305,9 +307,6 @@ export interface RunLimits {
   model_calls?: ModelCalls;
   tool_calls?: ToolCalls;
   total_calls?: TotalCalls;
-  deadline_seconds?: DeadlineSeconds;
-  context_chars?: ContextChars;
-  output_chars?: OutputChars;
   result_chars?: ResultChars;
   max_failures?: MaxFailures;
 }
@@ -325,6 +324,7 @@ export interface RunEvent {
 export interface MultipleChoiceElement {
   question: Question;
   choices: Choices;
+  presentation?: Presentation;
   type?: Type1;
   element_id: ElementId;
 }
@@ -340,6 +340,7 @@ export interface RunOutcome {
   text: Text6;
   elements?: Elements;
   reason?: Reason1;
+  notice?: Notice;
   usage: RunUsage;
 }
 export interface RunUsage {

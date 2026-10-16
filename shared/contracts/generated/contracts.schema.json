@@ -567,6 +567,16 @@
           "title": "Choices",
           "type": "array"
         },
+        "presentation": {
+          "default": "after_response",
+          "description": "Use after_response for follow-up choices that depend on the explanation: display them after the response completes successfully. Use inline for a clarification or standalone question: display it at the tool's position.",
+          "enum": [
+            "after_response",
+            "inline"
+          ],
+          "title": "Presentation",
+          "type": "string"
+        },
         "type": {
           "const": "multiple_choice",
           "default": "multiple_choice",
@@ -830,27 +840,6 @@
           "title": "Total Calls",
           "type": "integer"
         },
-        "deadline_seconds": {
-          "default": 28.0,
-          "exclusiveMinimum": 0,
-          "maximum": 30,
-          "title": "Deadline Seconds",
-          "type": "number"
-        },
-        "context_chars": {
-          "default": 24000,
-          "maximum": 64000,
-          "minimum": 2000,
-          "title": "Context Chars",
-          "type": "integer"
-        },
-        "output_chars": {
-          "default": 6000,
-          "maximum": 16000,
-          "minimum": 100,
-          "title": "Output Chars",
-          "type": "integer"
-        },
         "result_chars": {
           "default": 6000,
           "maximum": 16000,
@@ -915,6 +904,18 @@
           ],
           "default": null,
           "title": "Reason"
+        },
+        "notice": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notice"
         },
         "usage": {
           "$ref": "#/$defs/RunUsage"
@@ -1039,7 +1040,6 @@
           "type": "string"
         },
         "text": {
-          "maxLength": 4000,
           "minLength": 1,
           "title": "Text",
           "type": "string"

@@ -20,9 +20,134 @@ test("progress replay and final outcomes merge one card by run/element identity"
   let state = events.reduce(applyRunEvent, emptyDisplay());
   state = events.reduce(applyRunEvent, state);
   assert.equal(state.text, "Final text.");
-  assert.equal(state.elements.length, 1);
+  assert.equal(state.blocks.filter((block) => block.kind === "element").length, 1);
   assert.equal(state.sequence, 3);
   assert.equal(applyRunEvent(state, { ...event(4, "element", { element }), run_id: "another" }), state);
+});
+
+test("follow-up choices wait for successful completion after all response text", () => {
+  let state = applyRunEvent(emptyDisplay(), event(0, "element", {
+    element: { ...element, presentation: "after_response" },
+  }));
+  assert.deepEqual(state.blocks, []);
+  state = applyRunEvent(state, event(1, "message_delta", { message: "An overview" }));
+  assert.deepEqual(state.blocks.map((block) => block.kind), ["text"]);
+  assert.equal(state.blocks[0].text, "An overview");
+  state = applyRunEvent(state, event(2, "outcome", { outcome: {
+    status: "completed", text: "An overview with final details.",
+    elements: [{ ...element, presentation: "after_response" }],
+  } }));
+  assert.deepEqual(state.blocks.map((block) => block.kind), ["text", "element"]);
+  assert.equal(state.blocks[0].text, "An overview with final details.");
+  assert.equal(state.blocks[1].id, element.element_id);
+});
+
+test("choices without presentation metadata default to after the response", () => {
+  let state = applyRunEvent(emptyDisplay(), event(0, "element", { element }));
+  assert.deepEqual(state.blocks, []);
+  state = applyRunEvent(state, event(1, "outcome", { outcome: {
+    status: "completed", text: "Context first.", elements: [element],
+  } }));
+  assert.deepEqual(state.blocks.map((block) => block.kind), ["text", "element"]);
+});
+
+test("inline choices keep their position between streamed text blocks", () => {
+  let state = applyRunEvent(emptyDisplay(), event(0, "message_delta", { message: "Before." }));
+  const inline = { ...element, presentation: "inline" };
+  state = applyRunEvent(state, event(1, "element", { element: inline }));
+  assert.deepEqual(state.blocks.map((block) => block.kind), ["text", "element"]);
+  state = applyRunEvent(state, event(2, "message_delta", { message: "After." }));
+  state = applyRunEvent(state, event(3, "outcome", { outcome: {
+    status: "completed", text: "Before.After.", elements: [inline],
+  } }));
+  assert.deepEqual(state.blocks.map((block) => block.kind), ["text", "element", "text"]);
+});
+
+test("outcome-only replay puts follow-up choices after authoritative text", () => {
+  const final = event(5, "outcome", { outcome: {
+    status: "completed", text: "The complete explanation.", elements: [element],
+  } });
+  const state = applyRunEvent(emptyDisplay(), final);
+  assert.deepEqual(state.blocks.map((block) => block.kind), ["text", "element"]);
+  assert.equal(applyRunEvent(state, final), state);
+});
+
+test("pending choices update without duplication and remain after corrected final text", () => {
+  let state = applyRunEvent(emptyDisplay(), event(0, "message_delta", { message: "Draft." }));
+  state = applyRunEvent(state, event(1, "element", { element }));
+  const updated = { ...element, question: "Updated question?" };
+  state = applyRunEvent(state, event(2, "element", { element: updated }));
+  const second = { ...element, element_id: "element-2" };
+  state = applyRunEvent(state, event(3, "element", { element: second }));
+  state = applyRunEvent(state, event(4, "outcome", { outcome: {
+    status: "completed", text: "Corrected explanation.", elements: [updated, second],
+  } }));
+  assert.deepEqual(state.blocks.map((block) => block.kind), ["text", "element", "element"]);
+  assert.equal(state.blocks[0].text, "Corrected explanation.");
+  assert.equal(state.blocks[1].element.question, "Updated question?");
+  assert.equal(state.blocks[2].id, second.element_id);
+});
+
+for (const status of ["failed", "cancelled"]) {
+  test(`${status} responses discard pending choices while preserving text`, () => {
+    let state = applyRunEvent(emptyDisplay(), event(0, "element", { element }));
+    state = applyRunEvent(state, event(1, "message_delta", { message: "Partial explanation." }));
+    state = applyRunEvent(state, event(2, "outcome", { outcome: {
+      status, text: "Partial explanation.", notice: "Response stopped.", elements: [element],
+    } }));
+    assert.deepEqual(state.blocks.map((block) => block.kind), ["text"]);
+    assert.equal(state.text, "Partial explanation.");
+    assert.equal(state.outcome.notice, "Response stopped.");
+    assert.deepEqual(state.pendingElements, []);
+  });
+}
+
+test("streaming proxy survives its former deadline and still propagates client cancellation", async () => {
+  const require = createRequire(import.meta.url);
+  const ts = require("typescript");
+  const source = readFileSync(new URL("../layers/input/web/app/api/backend/[...path]/route.ts", import.meta.url), "utf8");
+  const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } });
+  const exported = {};
+  new Function("exports", outputText)(exported);
+  const originalFetch = globalThis.fetch;
+  const originalTimeout = AbortSignal.timeout;
+  const timers = [];
+  const signals = [];
+  AbortSignal.timeout = (milliseconds) => {
+    const controller = new AbortController();
+    timers.push({ milliseconds, controller });
+    return controller.signal;
+  };
+  globalThis.fetch = async (_url, options) => {
+    signals.push(options.signal);
+    return new Response(new ReadableStream({ start(controller) {
+      options.signal.addEventListener("abort", () => controller.error(new Error("Aborted")));
+      // Advance all proxy deadline timers while the upstream response is active.
+      for (const timer of timers) timer.controller.abort();
+      if (!options.signal.aborted) {
+        controller.enqueue(new TextEncoder().encode("continued response\n"));
+        controller.close();
+      }
+    } }), { headers: { "content-type": "application/x-ndjson" } });
+  };
+  try {
+    const client = new AbortController();
+    const response = await exported.POST(new Request("http://127.0.0.1/api/backend/runtime/run", {
+      method: "POST", body: "{}", signal: client.signal,
+    }), { params: Promise.resolve({ path: ["runtime", "run"] }) });
+    assert.equal(await response.text(), "continued response\n");
+    assert.equal(timers.length, 0);
+    client.abort();
+    assert.equal(signals[0].aborted, true);
+    const view = await exported.GET(new Request("http://127.0.0.1/api/backend/view"), {
+      params: Promise.resolve({ path: ["view"] }),
+    });
+    await assert.rejects(view.text(), /Aborted/);
+    assert.equal(timers[0].milliseconds, 35000);
+  } finally {
+    globalThis.fetch = originalFetch;
+    AbortSignal.timeout = originalTimeout;
+  }
 });
 
 test("NDJSON parser handles split UTF-8 and rejects truncated streams", async () => {
@@ -35,6 +160,24 @@ test("NDJSON parser handles split UTF-8 and rejects truncated streams", async ()
   await readRunEvents(new Response(stream), (event) => events.push(event));
   assert.equal(events[0].message, "选择");
   await assert.rejects(readRunEvents(new Response("{\"type\":"), () => {}), /ended during an event/);
+});
+
+test("large final answers survive fragmented NDJSON and render after streamed text", async () => {
+  const text = "宇宙 is large. ".repeat(12000);
+  const bytes = new TextEncoder().encode([
+    event(0, "message_delta", { message: text.slice(0, 6000) }),
+    event(1, "outcome", { outcome: { status: "completed", text, elements: [element] } }),
+  ].map((item) => JSON.stringify(item) + "\n").join(""));
+  const stream = new ReadableStream({ start(controller) {
+    for (let offset = 0; offset < bytes.length; offset += 4096)
+      controller.enqueue(bytes.slice(offset, offset + 4096));
+    controller.close();
+  } });
+  let state = emptyDisplay();
+  await readRunEvents(new Response(stream), (event) => { state = applyRunEvent(state, event); });
+  assert.equal(state.text, text);
+  assert.deepEqual(state.blocks.map((block) => block.kind), ["text", "element"]);
+  assert.equal(state.blocks[0].text, text);
 });
 
 test("unknown response types, including prototype names, render the unsupported state", () => {

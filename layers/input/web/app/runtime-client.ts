@@ -8,13 +8,14 @@ export type RuntimeDisplay = {
   runId?: string;
   text: string;
   blocks: RuntimeBlock[];
+  pendingElements: MultipleChoiceElement[];
   sequence: number;
   progress: string;
   outcome?: RunOutcome;
 };
 
 export function emptyDisplay(): RuntimeDisplay {
-  return { text: "", blocks: [], sequence: -1, progress: "Connecting" };
+  return { text: "", blocks: [], pendingElements: [], sequence: -1, progress: "Connecting" };
 }
 
 function appendText(blocks: RuntimeBlock[], text: string, sequence: number) {
@@ -40,13 +41,22 @@ export function applyRunEvent(display: RuntimeDisplay, event: RunEvent): Runtime
   if ((display.runId && display.runId !== event.run_id) || event.sequence <= display.sequence)
     return display;
   let blocks = display.blocks;
+  let pendingElements = display.pendingElements;
   let text = display.text;
+  function receiveElement(element: MultipleChoiceElement) {
+    if (element.presentation === "inline") {
+      blocks = addElement(blocks, element);
+    } else {
+      const index = pendingElements.findIndex((item) => item.element_id === element.element_id);
+      pendingElements = index < 0 ? [...pendingElements, element]
+        : pendingElements.map((item, itemIndex) => itemIndex === index ? element : item);
+    }
+  }
   if (event.type === "message_delta" && event.message) {
     text += event.message;
     blocks = appendText(blocks, event.message, event.sequence);
   }
-  if (event.element) blocks = addElement(blocks, event.element);
-  for (const element of event.outcome?.elements || []) blocks = addElement(blocks, element);
+  if (event.element) receiveElement(event.element);
   if (event.outcome && event.outcome.text !== text) {
     const finalText = event.outcome.text;
     if (finalText.startsWith(text)) {
@@ -63,12 +73,21 @@ export function applyRunEvent(display: RuntimeDisplay, event: RunEvent): Runtime
     }
     text = finalText;
   }
+  if (event.outcome) {
+    for (const element of event.outcome.elements || []) receiveElement(element);
+    // Tool execution order is independent of when follow-up questions become visible.
+    if (event.outcome.status === "completed") {
+      for (const element of pendingElements) blocks = addElement(blocks, element);
+    }
+    pendingElements = [];
+  }
   return {
     ...display,
     runId: event.run_id,
     sequence: event.sequence,
     text,
     blocks,
+    pendingElements,
     progress: event.type === "progress" ? event.message || "Working" : display.progress,
     outcome: event.outcome || display.outcome,
   };
@@ -86,7 +105,6 @@ export async function readRunEvents(response: Response, receive: (event: RunEven
       const lines = buffer.split("\n");
       buffer = lines.pop() || "";
       for (const line of lines) if (line.trim()) receive(JSON.parse(line) as RunEvent);
-      if (buffer.length > 100000) throw new Error("The response event exceeds its size limit.");
       if (done) {
         if (buffer.trim()) throw new Error("The response stream ended during an event.");
         return;

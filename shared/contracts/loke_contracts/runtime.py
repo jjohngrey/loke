@@ -26,6 +26,14 @@ class Choice(RuntimeContract):
 class MultipleChoiceInput(RuntimeContract):
     question: str = Field(min_length=1, max_length=1000)
     choices: list[Choice] = Field(min_length=3, max_length=5)
+    presentation: Literal["after_response", "inline"] = Field(
+        default="after_response",
+        description=(
+            "Use after_response for follow-up choices that depend on the explanation: "
+            "display them after the response completes successfully. Use inline for a "
+            "clarification or standalone question: display it at the tool's position."
+        ),
+    )
 
     @field_validator("question")
     @classmethod
@@ -54,7 +62,7 @@ class RuntimeRequest(RuntimeContract):
     session_id: str = Field(min_length=1, max_length=100)
     session_epoch: int = Field(default=0, ge=0)
     request_id: str = Field(min_length=1, max_length=100)
-    text: str = Field(min_length=1, max_length=4000)
+    text: str = Field(min_length=1)
 
     @field_validator("text")
     @classmethod
@@ -89,9 +97,6 @@ class RunLimits(RuntimeContract):
     model_calls: int = Field(default=4, ge=2, le=10)
     tool_calls: int = Field(default=4, ge=1, le=10)
     total_calls: int = Field(default=8, ge=2, le=20)
-    deadline_seconds: float = Field(default=28.0, gt=0, le=30)
-    context_chars: int = Field(default=24000, ge=2000, le=64000)
-    output_chars: int = Field(default=6000, ge=100, le=16000)
     result_chars: int = Field(default=6000, ge=256, le=16000)
     max_failures: int = Field(default=2, ge=1, le=5)
 
@@ -112,6 +117,7 @@ class RunOutcome(RuntimeContract):
     text: str
     elements: list[MultipleChoiceElement] = Field(default_factory=list)
     reason: str | None = None
+    notice: str | None = None
     usage: RunUsage
 
 

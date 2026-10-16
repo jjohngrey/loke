@@ -59,7 +59,7 @@ def _usage_counts(usage, prompt_tokens, completion_tokens, reasoning_tokens):
 
 
 class DemoRuntimeModel:
-    async def complete(self, messages, tools, *, tools_enabled, output_chars, on_text_delta=None):
+    async def complete(self, messages, tools, *, tools_enabled, on_text_delta=None):
         await asyncio.sleep(0.25)
         if messages[-1]["role"] == "tool":
             result = json.loads(messages[-1]["content"])
@@ -72,6 +72,7 @@ class DemoRuntimeModel:
             return ModelReply(text="Let's choose a starting point.", tool_calls=[ModelToolCall(
                 "demo-choice", "generate_multiple_choice_response", json.dumps({
                     "question": "How would you like to explore this topic?",
+                    "presentation": "after_response",
                     "choices": [{"id": "example", "text": "Walk through an example"},
                                 {"id": "overview", "text": "Start with an overview"},
                                 {"id": "discuss", "text": "Discuss a specific question"}],
@@ -84,7 +85,7 @@ class OpenRouterRuntimeModel:
     def __init__(self, transport: httpx.AsyncBaseTransport | None = None):
         self.transport = transport
 
-    async def complete(self, messages, tools, *, tools_enabled, output_chars, on_text_delta=None):
+    async def complete(self, messages, tools, *, tools_enabled, on_text_delta=None):
         started = time.monotonic()
         diagnostics = {
             "model": os.getenv("TEXT_MODEL", "openai/gpt-4.1-mini"),
@@ -138,7 +139,7 @@ class OpenRouterRuntimeModel:
         }
         if reasoning_effort:
             payload["reasoning"] = {"effort": reasoning_effort}
-        async with httpx.AsyncClient(timeout=20, transport=self.transport) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(20, read=120), transport=self.transport) as client:
             async with client.stream(
                 "POST", "https://openrouter.ai/api/v1/chat/completions",
                 headers={"Authorization": f"Bearer {key}"}, json=payload,
@@ -150,9 +151,10 @@ class OpenRouterRuntimeModel:
                 if not response.is_success:
                     body = bytearray()
                     async for chunk in response.aiter_bytes():
-                        body.extend(chunk)
-                        if len(body) > 64000:
-                            raise ModelFailure("response_size")
+                        # Bound diagnostic error bodies without imposing a limit on answers.
+                        body.extend(chunk[:64000 - len(body)])
+                        if len(body) >= 64000:
+                            break
                     # Only numeric provider codes are admitted; messages and metadata can
                     # contain credentials, request content, and arbitrary upstream bodies.
                     try:
@@ -177,8 +179,6 @@ class OpenRouterRuntimeModel:
                     body = bytearray()
                     async for chunk in response.aiter_bytes():
                         body.extend(chunk)
-                        if len(body) > 64000:
-                            raise ModelFailure("response_size")
                     data = json.loads(body)
                     usage = data.get("usage")
                     if isinstance(usage, dict):
@@ -222,8 +222,6 @@ class OpenRouterRuntimeModel:
                     response_format = "sse"
                     async for line in response.aiter_lines():
                         stream_bytes += len(line.encode("utf-8")) + 1
-                        if stream_bytes > 64000:
-                            raise ModelFailure("response_size")
                         if not line.startswith("data:"):
                             continue
                         data_line = line[5:].strip()

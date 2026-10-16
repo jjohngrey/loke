@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 from dataclasses import replace
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -14,6 +15,7 @@ from loke_contracts.runtime import (
     RunLimits,
     RuntimeRequest,
 )
+from loke_intelligence import agent_runtime as runtime_module
 from loke_intelligence.agent_runtime import (
     AgentRuntime,
     InMemorySessionStore,
@@ -21,9 +23,7 @@ from loke_intelligence.agent_runtime import (
     ModelToolCall,
     RuntimeCapacity,
     RuntimeConflict,
-    bounded_context,
 )
-from loke_intelligence.app import create_app
 from loke_intelligence.runtime_errors import ModelFailure
 from loke_intelligence.runtime_model import OpenRouterRuntimeModel
 from loke_intelligence.runtime_tools import ToolRegistry, example_registry
@@ -91,11 +91,35 @@ def test_text_tool_observation_final_and_follow_up():
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("presentation", [None, "after_response", "inline"])
+def test_choice_presentation_survives_tool_observation_and_event_replay(presentation):
+    async def scenario():
+        arguments = dict(ARGUMENTS)
+        if presentation is not None:
+            arguments["presentation"] = presentation
+        model = FakeModel(ModelReply(tool_calls=[call(args=arguments)]),
+                          ModelReply("An explanation before the follow-up."))
+        run = engine(model).reserve("owner", request())
+        result = await finish(run)
+        expected = presentation or "after_response"
+        assert result.status == "completed"
+        assert result.elements[0].presentation == expected
+        element_event = next(event for event in run.events if event.type == "element")
+        assert element_event.element.presentation == expected
+        assert run.events.index(element_event) < next(
+            index for index, event in enumerate(run.events) if event.type == "message_delta"
+        )
+        observation = json.loads(model.requests[1][0][-1]["content"])
+        assert observation["result"]["element"]["presentation"] == expected
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize("tool_call,code", [
     (call("unknown"), "unknown_tool"),
     (call(args={"question": "Q", "choices": []}), "invalid_arguments"),
     (call(args={**ARGUMENTS, "extra": 1}), "invalid_arguments"),
     (call(args={**ARGUMENTS, "question": " "}), "invalid_arguments"),
+    (call(args={**ARGUMENTS, "presentation": "unknown"}), "invalid_arguments"),
     (call(args={**ARGUMENTS, "choices": [ARGUMENTS["choices"][0]] * 3}), "invalid_arguments"),
     (ModelToolCall("call-1", "generate_multiple_choice_response", "{bad json"), "invalid_arguments"),
 ])
@@ -159,7 +183,9 @@ def test_provider_error_and_budget_outcomes(monkeypatch, caplog):
         run = runtime.reserve("owner", request())
         result = await finish(run)
         assert result.reason == "provider_error" and result.status == "failed"
-        assert result.text == ModelFailure.MESSAGES["unknown"]
+        assert result.notice == ModelFailure.MESSAGES["unknown"]
+        assert result.text == ""
+        assert result.notice not in json.dumps(runtime.store.session("owner", "chat").conversation)
         observable = (result.model_dump_json() + caplog.text
                       + json.dumps([event.model_dump(mode="json") for event in run.events])
                       + json.dumps(runtime.store.session("owner", "chat").conversation))
@@ -176,8 +202,6 @@ def test_provider_error_and_budget_outcomes(monkeypatch, caplog):
         assert result.status == "failed" and result.reason == "tool_budget"
         assert result.usage.model_calls + result.usage.tool_calls == 3
         assert model.requests[-1][2]["tools_enabled"] is False
-        result = await finish(engine(FakeModel(ModelReply("x" * 101)), output_chars=100).reserve("owner", request()))
-        assert result.reason == "output_budget"
     asyncio.run(scenario())
 
 
@@ -201,22 +225,80 @@ def test_repeated_errors_return_a_stop_reason_even_with_final_text():
         result = await finish(engine(model).reserve("owner", request()))
         assert result.status == "failed" and result.reason == "repeated_tool_errors"
         assert "I can respond without options." in result.text
-        assert len(result.text) <= RunLimits().output_chars
     asyncio.run(scenario())
 
 
-def test_context_and_output_limits_and_shutdown_are_terminal():
+def test_shutdown_is_terminal():
     async def scenario():
-        runtime = engine(FakeModel(), context_chars=2000)
-        result = await finish(runtime.reserve("owner", request(text="x" * 4000)))
-        assert result.reason == "context_budget" and result.usage.model_calls == 0
-        runtime = engine(FakeModel(ModelReply("x" * 100, [call()])), output_chars=100)
-        result = await finish(runtime.reserve("owner", request()))
-        assert result.reason == "output_budget" and len(result.text) <= 100
         runtime = engine(FakeModel(ModelReply("Unused")))
         run = runtime.reserve("owner", request())
         await runtime.shutdown()
         assert run.outcome.status == "cancelled"
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("streamed", [False, True])
+def test_long_chat_input_and_answers_survive_tools_and_follow_up_context(streamed):
+    question = "Explain the universe. " * 2000
+    answer = "A paragraph about the universe. " * 5000
+
+    class LongModel(FakeModel):
+        async def complete(self, *args, **kwargs):
+            reply = await super().complete(*args, **kwargs)
+            if streamed:
+                for start in range(0, len(reply.text), 17000):
+                    kwargs["on_text_delta"](reply.text[start:start + 17000])
+                reply.text_streamed = True
+            return reply
+
+    async def scenario():
+        model = LongModel(ModelReply(answer, [call()]), ModelReply("Choose an option."),
+                          ModelReply("Next answer."))
+        runtime = engine(model)
+        run = runtime.reserve("owner", request(text=question))
+        result = await finish(run)
+        assert result.status == "completed" and result.notice is None
+        assert result.text == answer + "\nChoose an option."
+        assert len(result.elements) == 1
+        assert model.requests[0][0][-1]["content"] == question
+        assert any(message.get("content") == answer for message in model.requests[1][0])
+        follow_up = await finish(runtime.reserve("owner", request("two", "Continue.")))
+        assert follow_up.status == "completed"
+        assert any(message.get("content") == answer for message in model.requests[2][0])
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("response_format", ["sse", "json"])
+def test_large_provider_responses_finish_without_stream_or_answer_size_cutoffs(monkeypatch, response_format):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "offline-test-key")
+    answer = "宇宙 has a long history. " * 6000
+    if response_format == "json":
+        body = json.dumps({"choices": [
+            {"message": {"content": answer}, "finish_reason": "stop"},
+        ]}).encode()
+    else:
+        events = [{"choices": [{"delta": {"reasoning": "r" * 100000}}]}]
+        events.extend({"choices": [{"delta": {"content": answer[start:start + 100]}}]}
+                      for start in range(0, len(answer), 100))
+        events.append({"choices": [{"delta": {}, "finish_reason": "stop"}]})
+        body = ("".join(f"data: {json.dumps(event)}\n\n" for event in events)
+                + "data: [DONE]\n\n").encode()
+
+    class Chunks(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            for start in range(0, len(body), 4096):
+                yield body[start:start + 4096]
+
+    async def scenario():
+        adapter = OpenRouterRuntimeModel(httpx.MockTransport(lambda req: httpx.Response(
+            200, headers={"content-type": "application/json" if response_format == "json"
+                          else "text/event-stream"}, stream=Chunks(),
+        )))
+        run = engine(adapter).reserve("owner", request())
+        outcome = await finish(run)
+        assert outcome.status == "completed" and outcome.notice is None
+        assert outcome.text == answer
+        assert "".join(event.message for event in run.events if event.type == "message_delta") == answer
     asyncio.run(scenario())
 
 
@@ -250,9 +332,9 @@ def test_duplicate_reservation_serialization_conflict_and_isolation():
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize("operation", ["cancel", "reset", "deadline"])
+@pytest.mark.parametrize("operation", ["cancel", "reset"])
 @pytest.mark.parametrize("stage", ["provider", "handler"])
-def test_cancellation_reset_deadline_and_late_suppression(operation, stage):
+def test_cancellation_reset_and_late_suppression(operation, stage):
     async def scenario():
         started, release = asyncio.Event(), asyncio.Event()
         late = asyncio.Event()
@@ -278,7 +360,7 @@ def test_cancellation_reset_deadline_and_late_suppression(operation, stage):
 
         spec = next(iter(example_registry().specs.values()))
         registry = ToolRegistry([replace(spec, handler=handler)]) if stage == "handler" else example_registry()
-        runtime = engine(SlowModel(), registry, deadline_seconds=0.05 if operation == "deadline" else 2.0)
+        runtime = engine(SlowModel(), registry)
         run = runtime.reserve("owner", request())
         await started.wait()
         if operation == "reset":
@@ -286,7 +368,7 @@ def test_cancellation_reset_deadline_and_late_suppression(operation, stage):
         elif operation == "cancel":
             runtime.cancel("owner", "chat", 0, "one")
         result = await asyncio.wait_for(finish(run), 0.3)
-        assert result.status == ("failed" if operation == "deadline" else "cancelled")
+        assert result.status == "cancelled"
         assert result.elements == []
         events = list(run.events)
         release.set()
@@ -298,6 +380,66 @@ def test_cancellation_reset_deadline_and_late_suppression(operation, stage):
             assert runtime.store.session("owner", "chat").conversation == []
             with pytest.raises(RuntimeConflict):
                 runtime.reserve("owner", request())
+    asyncio.run(scenario())
+
+
+def test_response_can_continue_past_old_deadline_across_model_and_tool_calls(monkeypatch):
+    clock = SimpleNamespace(now=0.0)
+    monkeypatch.setattr(runtime_module, "time", SimpleNamespace(monotonic=lambda: clock.now))
+
+    class LongResponseModel(FakeModel):
+        async def complete(self, *args, **kwargs):
+            clock.now += 40
+            await asyncio.sleep(0.001)
+            return await super().complete(*args, **kwargs)
+
+    async def scenario():
+        runtime = engine(LongResponseModel(ModelReply(tool_calls=[call()]),
+                                           ModelReply("The full explanation.")))
+        result = await finish(runtime.reserve("owner", request()))
+        assert result.status == "completed"
+        assert result.text == "The full explanation."
+        assert result.usage.elapsed_ms == 80000
+        assert result.usage.model_calls == 2 and result.usage.tool_calls == 1
+    asyncio.run(scenario())
+
+
+def test_provider_inactivity_preserves_partial_text_without_putting_notice_in_history():
+    partial = "Our universe would be one bubble among potentially infinitely many."
+
+    class InterruptedModel:
+        async def complete(self, *args, **kwargs):
+            kwargs["on_text_delta"](partial)
+            raise ModelFailure("timeout")
+
+    async def scenario():
+        runtime = engine(InterruptedModel())
+        run = runtime.reserve("owner", request())
+        result = await finish(run)
+        assert result.status == "failed" and result.reason == "provider_error"
+        assert result.text == partial
+        assert result.notice == ModelFailure.MESSAGES["timeout"]
+        history = runtime.store.session("owner", "chat").conversation
+        assert history[-1] == [{"role": "assistant", "content": partial}]
+        assert result.notice not in json.dumps(history)
+        assert [event async for event in run.stream()][-1].outcome == result
+    asyncio.run(scenario())
+
+
+def test_provider_read_inactivity_timeout_is_more_generous_than_connection_timeout(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "offline-test-key")
+
+    def transport(req):
+        assert req.extensions["timeout"] == {"connect": 20, "read": 120, "write": 20, "pool": 20}
+        return httpx.Response(200, json={"choices": [
+            {"message": {"content": "A complete answer."}, "finish_reason": "stop"},
+        ]})
+
+    async def scenario():
+        runtime = engine(OpenRouterRuntimeModel(httpx.MockTransport(transport)))
+        result = await finish(runtime.reserve("owner", request()))
+        assert result.status == "completed" and result.text == "A complete answer."
+        assert result.notice is None
     asyncio.run(scenario())
 
 
@@ -332,18 +474,7 @@ def test_rapid_reset_and_same_request_id_in_new_epoch():
     asyncio.run(scenario())
 
 
-def test_context_trims_complete_exchanges_and_store_bounds_history():
-    exchange = [{"role": "assistant", "tool_calls": [call().message()]},
-                {"role": "tool", "tool_call_id": "call-1", "content": "observation"}]
-    groups = [[{"role": "user", "content": "x" * 2000}], exchange,
-              [{"role": "user", "content": "Follow up"}]]
-    context = bounded_context(groups, "instructions", [], 800)
-    assert context[1:] == exchange + groups[-1]
-    smaller = bounded_context(groups, "instructions", [], 150)
-    assert smaller[1:] == groups[-1]
-    with pytest.raises(RuntimeCapacity):
-        bounded_context([groups[0]], "instructions", [], 150)
-
+def test_store_bounds_history():
     async def scenario():
         runtime = engine(FakeModel(*[ModelReply("Response") for _ in range(5)]))
         runtime.store = InMemorySessionStore(max_sessions=1, max_outcomes=2, max_groups=3)
@@ -357,6 +488,8 @@ def test_context_trims_complete_exchanges_and_store_bounds_history():
 
 
 def test_authenticated_stream_replay_conflict_and_reset(tmp_path, monkeypatch):
+    from loke_intelligence.app import create_app
+
     monkeypatch.setenv("MODEL_MODE", "demo")
     monkeypatch.setenv("SESSION_TOKEN", "test-runtime-token")
     model = FakeModel(ModelReply("First", [call()]), ModelReply("Choose."), ModelReply("After reset"))
@@ -425,6 +558,8 @@ def test_real_provider_adapter_tool_transcript_and_sanitized_errors(monkeypatch)
 def test_example_schema_is_strict():
     assert MultipleChoiceInput.model_json_schema()["additionalProperties"] is False
     assert MultipleChoiceOutput.model_json_schema()["additionalProperties"] is False
+    parameters = example_registry().declarations()[0]["function"]["parameters"]
+    assert set(parameters["required"]) == set(parameters["properties"])
 
 
 @pytest.mark.parametrize("streamed", [True, False])
@@ -447,7 +582,7 @@ def test_unread_http_error_always_finishes_run(monkeypatch, caplog, streamed):
         outcome = await asyncio.wait_for(finish(run), 1)
         assert outcome.status == "failed" and outcome.reason == "provider_error"
         category = "routing" if streamed else "unknown"
-        assert outcome.text == ModelFailure.MESSAGES[category]
+        assert outcome.notice == ModelFailure.MESSAGES[category]
         assert "offline-test-key" not in outcome.text
         if streamed:
             assert caplog.records[-1].runtime_diagnostic["http_status"] == 404
@@ -479,7 +614,7 @@ def test_provider_failures_have_safe_messages_and_structured_diagnostics(monkeyp
         run = runtime.reserve("owner", request())
         outcome = await finish(run)
         assert outcome.reason == "provider_error"
-        assert outcome.text == ModelFailure.MESSAGES[category]
+        assert outcome.notice == ModelFailure.MESSAGES[category]
         diagnostic = caplog.records[-1].runtime_diagnostic
         assert diagnostic["category"] == category
         assert diagnostic["http_status"] == diagnostic["provider_error_code"] == status
@@ -510,7 +645,7 @@ def test_provider_transport_failures_keep_diagnostics_without_exception_text(mon
 
     async def scenario():
         outcome = await finish(engine(OpenRouterRuntimeModel(httpx.MockTransport(transport))).reserve("owner", request()))
-        assert outcome.text == ModelFailure.MESSAGES[category]
+        assert outcome.notice == ModelFailure.MESSAGES[category]
         assert caplog.records[-1].runtime_diagnostic["category"] == category
         assert caplog.records[-1].runtime_diagnostic["cause_type"] == type(failure).__name__
         assert caplog.records[-1].runtime_diagnostic["frames"][-1]["function"] == "transport"
@@ -530,7 +665,7 @@ def test_provider_diagnostic_fields_are_bounded_and_do_not_copy_arbitrary_metada
                 json={"error": {"code": "private-error-code", "message": "private body"}},
             )))
             outcome = await finish(engine(adapter).reserve("owner", request()))
-            assert outcome.text == ModelFailure.MESSAGES["routing"]
+            assert outcome.notice == ModelFailure.MESSAGES["routing"]
             diagnostic = caplog.records[-1].runtime_diagnostic
             assert "provider_request_id" not in diagnostic and "provider_error_code" not in diagnostic
             assert diagnostic["model"] == diagnostic["provider"] == "[omitted]"
@@ -548,13 +683,14 @@ def test_invalid_provider_response_has_controlled_failure(monkeypatch, caplog, b
     async def scenario():
         adapter = OpenRouterRuntimeModel(httpx.MockTransport(lambda req: httpx.Response(200, content=body)))
         outcome = await finish(engine(adapter).reserve("owner", request()))
-        assert outcome.text == ModelFailure.MESSAGES["invalid_response"]
+        assert outcome.notice == ModelFailure.MESSAGES["invalid_response"]
         assert caplog.records[-1].runtime_diagnostic["category"] == "invalid_response"
         assert "private malformed JSON" not in outcome.text + caplog.text
     asyncio.run(scenario())
 
 
-def test_length_finish_reason_is_output_budget_with_usage_diagnostics(monkeypatch, caplog):
+def test_provider_length_finish_reason_preserves_usage_diagnostics(monkeypatch, caplog):
+    caplog.set_level("INFO", logger="loke_intelligence.runtime_model")
     monkeypatch.setenv("OPENROUTER_API_KEY", "configured-secret")
     monkeypatch.delenv("OPENROUTER_REASONING_EFFORT", raising=False)
     event = json.dumps({
@@ -572,10 +708,11 @@ def test_length_finish_reason_is_output_budget_with_usage_diagnostics(monkeypatc
             200, headers={"content-type": "text/event-stream"}, content=body,
         )))
         outcome = await finish(engine(adapter).reserve("owner", request()))
-        assert outcome.status == "failed" and outcome.reason == "output_budget"
-        assert outcome.text == (
-            "The model reached its output budget before producing a visible response. Please try again."
+        assert outcome.status == "failed" and outcome.reason == "provider_output_limit"
+        assert outcome.notice == (
+            "The model provider ended the response at its output limit."
         )
+        assert outcome.text == ""
         assert outcome.usage.prompt_tokens == 120
         assert outcome.usage.completion_tokens == 4096
         diagnostic = next(
@@ -609,8 +746,8 @@ logger.info('runtime_model_response startup-diagnostic')
 
 
 @pytest.mark.parametrize("streamed", [False, True])
-@pytest.mark.parametrize("partial,output_chars", [("Partial answer", 6000), ("x" * 200, 100)])
-def test_truncated_replies_preserve_bounded_text_and_skip_tools(streamed, partial, output_chars):
+@pytest.mark.parametrize("partial", ["Partial answer", "x" * 120000])
+def test_provider_truncated_replies_preserve_all_text_and_skip_tools(streamed, partial):
     class TruncatedModel:
         async def complete(self, messages, tools, **kwargs):
             if streamed:
@@ -619,14 +756,13 @@ def test_truncated_replies_preserve_bounded_text_and_skip_tools(streamed, partia
                               text_streamed=streamed, truncated=True)
 
     async def scenario():
-        runtime = engine(TruncatedModel(), output_chars=output_chars)
+        runtime = engine(TruncatedModel())
         run = runtime.reserve("owner", request())
         outcome = await finish(run)
-        notice = "The response was truncated after reaching its output budget."
-        expected_partial = partial[:output_chars - len(notice) - 1]
-        assert outcome.reason == "output_budget" and outcome.status == "failed"
-        assert outcome.text == expected_partial + "\n" + notice
-        assert len(outcome.text) <= output_chars
+        notice = "The model provider ended the response at its output limit."
+        assert outcome.reason == "provider_output_limit" and outcome.status == "failed"
+        assert outcome.text == partial
+        assert outcome.notice == notice
         assert outcome.usage.prompt_tokens == 12 and outcome.usage.completion_tokens == 50
         assert outcome.usage.tool_calls == 0 and outcome.elements == []
         assert any(event.type == "message_delta" for event in run.events)
@@ -646,7 +782,7 @@ def test_invalid_openrouter_reasoning_configuration_is_controlled(monkeypatch, c
         outcome = await finish(engine(OpenRouterRuntimeModel(
             httpx.MockTransport(unexpected_request))).reserve("owner", request()))
         assert outcome.status == "failed" and outcome.reason == "provider_error"
-        assert outcome.text == ModelFailure.MESSAGES["configuration"]
+        assert outcome.notice == ModelFailure.MESSAGES["configuration"]
         diagnostic = caplog.records[-1].runtime_diagnostic
         assert diagnostic["category"] == "configuration"
         assert diagnostic["configuration_field"] == "OPENROUTER_REASONING_EFFORT"
@@ -658,12 +794,12 @@ def test_missing_provider_credentials_have_controlled_failure(monkeypatch, caplo
 
     async def scenario():
         outcome = await finish(engine(OpenRouterRuntimeModel()).reserve("owner", request()))
-        assert outcome.text == ModelFailure.MESSAGES["configuration"]
+        assert outcome.notice == ModelFailure.MESSAGES["configuration"]
         assert caplog.records[-1].runtime_diagnostic["category"] == "configuration"
     asyncio.run(scenario())
 
 
-def test_streamed_error_body_keeps_transport_size_limit(monkeypatch):
+def test_oversized_error_body_keeps_original_provider_status_and_bounds_diagnostics(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "offline-test-key")
     chunks = []
 
@@ -679,6 +815,6 @@ def test_streamed_error_body_keeps_transport_size_limit(monkeypatch):
         ))
         outcome = await finish(engine(adapter).reserve("owner", request()))
         assert outcome.status == "failed" and outcome.reason == "provider_error"
-        assert "transport limit" in outcome.text
+        assert outcome.notice == ModelFailure.MESSAGES["routing"]
         assert chunks == [0, 1]
     asyncio.run(scenario())
