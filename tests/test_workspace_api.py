@@ -272,3 +272,91 @@ def test_stale_preprocessing_generation_is_rejected_before_transcription(client,
         client.get("/api/view", headers=HEADERS).json()["state_revision"]
         == initial["state_revision"]
     )
+
+
+def test_streaming_memory_chat_commits_and_replays_after_runtime_restart(client):
+    import json
+
+    from loke_intelligence.agent_runtime import InMemorySessionStore
+
+    initial = save_goal(client)
+    payload = dict(session_id="session", request_id="durable-runtime", text="Help me understand sodium channels",
+        generation_id=initial["generation_id"], memory_scope={"chat_id":"streaming"})
+    response=client.post("/api/runtime/run",headers=HEADERS,json=payload)
+    assert response.status_code == 200
+    events=[json.loads(line) for line in response.text.splitlines()]
+    assert events[-1]["outcome"]["status"] == "completed", events
+    store=client.app.state.store
+    messages=store.chat_history("demo-learner","streaming",initial["generation_id"])["messages"]
+    assert [m["role"] for m in messages] == ["user","assistant"]
+    assert messages[0]["text"] == payload["text"]
+    # Forget process-local replay state. Durable retry must not call a model again.
+    client.app.state.runtime.store = InMemorySessionStore()
+    async def forbidden(*args, **kwargs):
+        raise AssertionError("A committed retry must not call the model")
+    client.app.state.runtime.model.complete = forbidden
+    retried=client.post("/api/runtime/run",headers=HEADERS,json=payload)
+    replay=[json.loads(line) for line in retried.text.splitlines()]
+    assert replay[-1]["outcome"] == events[-1]["outcome"]
+    assert len(store.chat_history("demo-learner","streaming",initial["generation_id"])["messages"]) == 2
+    changed=client.post("/api/runtime/run",headers=HEADERS,json=dict(payload,text="changed"))
+    assert changed.status_code == 409
+    client.delete(f"/api/learner?generation_id={initial['generation_id']}",headers=HEADERS)
+    assert client.post("/api/runtime/run",headers=HEADERS,json=payload).status_code == 400
+
+
+def test_memory_runtime_rejects_stale_generation_without_a_run(client):
+    save_goal(client)
+    response=client.post("/api/runtime/run",headers=HEADERS,json=dict(session_id="session",
+        request_id="stale",text="Hello",generation_id="obsolete",memory_scope={"chat_id":"one"}))
+    assert response.status_code == 409
+    assert not client.app.state.runtime.store.sessions
+
+
+def test_chat_index_pages_are_bounded_and_cover_all_chats(client):
+    from datetime import UTC, datetime, timedelta
+
+    from loke_memory.tiered_tables import messages
+    from sqlalchemy import insert
+
+    initial = save_goal(client)
+    store=client.app.state.store
+    now=datetime.now(UTC)
+    with store.engine.begin() as conn:
+        conn.execute(insert(messages), [dict(learner_id="demo-learner",generation_id=initial["generation_id"],
+            key=f"chat-{i}",chat_id=f"chat-{i}",sequence=1,observed_at=now+timedelta(seconds=i),
+            data=dict(text=f"Conversation {i}",role="user")) for i in range(101)])
+    first=client.get("/api/workspace",headers=HEADERS).json()
+    second=client.get("/api/workspace",headers=HEADERS,params={"offset":100}).json()
+    assert len(first["chats"]) == 100 and first["has_more"]
+    assert len(second["chats"]) == 2 and not second["has_more"]
+    assert len({c["id"] for c in first["chats"]+second["chats"]}) == 102
+    assert first["chats"][0]["id"] == "chat-100"
+    assert first["state_revision"] == initial["state_revision"]
+    for bad in [0,101]:
+        with pytest.raises(ValueError):
+            store.workspace("demo-learner",limit=bad)
+        with pytest.raises(ValueError):
+            store.chat_history("demo-learner","chat-0",initial["generation_id"],limit=bad)
+
+
+def test_deleting_history_cancels_a_running_memory_response(client):
+    from loke_contracts.runtime import RuntimeRequest
+
+    initial=save_goal(client)
+    class WaitingModel:
+        async def complete(self, *args, **kwargs):
+            await asyncio.Event().wait()
+    runtime=client.app.state.runtime
+    runtime.model=WaitingModel()
+    async def start():
+        return runtime.reserve("demo-learner:"+initial["generation_id"], RuntimeRequest(
+            session_id="active",request_id="active",text="Hello"))
+    run=client.portal.call(start)
+    response=client.delete(f"/api/learner?generation_id={initial['generation_id']}",headers=HEADERS)
+    assert response.status_code == 200, response.text
+    async def wait():
+        await asyncio.wait_for(run.task, timeout=2)
+    client.portal.call(wait)
+    assert run.outcome.status == "cancelled"
+    assert client.get("/api/workspace",headers=HEADERS).json()["chats"] == []

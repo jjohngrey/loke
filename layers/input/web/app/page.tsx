@@ -1,6 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { ChatMarkdown } from "./chat-markdown";
+import { RuntimeElement } from "./runtime-elements";
+import { useRuntimeChat } from "./use-runtime-chat";
+import type { RuntimeDisplay } from "./runtime-client";
 import { useWorkspace } from "./use-workspace";
 import { useMediaInput } from "./use-media-input";
 import type { Chat } from "./use-workspace";
@@ -97,7 +101,8 @@ type IconName =
   | "logout"
   | "close"
   | "spark"
-  | "check";
+  | "check"
+  | "copy";
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, ReactNode> = {
@@ -169,6 +174,12 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
         <path d="m19 17 .6 2.4L22 20l-2.4.6L19 23l-.6-2.4L16 20l2.4-.6z" />
       </>
     ),
+    copy: (
+      <>
+        <rect x="8" y="8" width="12" height="12" rx="2" />
+        <path d="M16 8V4H4v12h4" />
+      </>
+    ),
     check: <path d="m5 12 4 4L19 6" />,
   };
   return (
@@ -185,6 +196,53 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     >
       {paths[name]}
     </svg>
+  );
+}
+
+function CopyResponseButton({ text }: { text: string }) {
+  const [copyState, setCopyState] = useState<"ready" | "copied" | "error">(
+    "ready",
+  );
+
+  useEffect(() => {
+    if (copyState !== "copied") return;
+    const timer = window.setTimeout(() => setCopyState("ready"), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copyState]);
+
+  async function copyResponse() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyState("copied");
+    } catch {
+      setCopyState("error");
+    }
+  }
+
+  const label = copyState === "copied" ? "Copied" : "Copy response as Markdown";
+
+  return (
+    <div className="message-actions">
+      <button
+        type="button"
+        className="icon-button"
+        aria-label={label}
+        title={label}
+        onClick={() => void copyResponse()}
+      >
+        <Icon name={copyState === "copied" ? "check" : "copy"} size={18} />
+      </button>
+      <span
+        role="status"
+        className={copyState === "error" ? "message-copy-error" : "sr-only"}
+      >
+        {copyState === "copied"
+          ? "Response copied."
+          : copyState === "error"
+            ? "Copy failed. Try again."
+            : ""}
+      </span>
+    </div>
   );
 }
 
@@ -218,14 +276,62 @@ export default function Workspace() {
   const [inputLabel, setInputLabel] = useState("");
   const [answer, setAnswer] = useState("");
   const [speak, setSpeak] = useState(false);
+  const [agentReplies, setAgentReplies] = useState(true);
+  const [overlay, setOverlay] = useState<{
+    id: string;
+    text: string;
+    display?: RuntimeDisplay;
+  } | null>(null);
+  const [completedDisplays, setCompletedDisplays] = useState<
+    Record<string, RuntimeDisplay>
+  >({});
+  const pendingRuntime = useRef<{
+    id: string;
+    text: string;
+    mode: LearningInput["mode"];
+    label: string;
+  } | null>(null);
   const workspace = useWorkspace(activeChatId, () => {
+    if (pendingRuntime.current)
+      void runtimeChat.reset(pendingRuntime.current.id);
+    pendingRuntime.current = null;
+    setOverlay(null);
+    setCompletedDisplays({});
     setActiveChatId(null);
     setDraft("");
     setInputLabel("");
     setInputMode("text");
     window.speechSynthesis?.cancel();
   });
-  const { chats, folders, view, busy, error } = workspace;
+  const { chats, folders, view, error } = workspace;
+  const runtimeChat = useRuntimeChat((id, _request, display) => {
+    const pending = pendingRuntime.current;
+    if (!pending || pending.id !== id) return;
+    setOverlay({ id, text: pending.text, display });
+    if (display.outcome?.status === "completed") {
+      void workspace
+        .reload()
+        .then(() => {
+          if (pendingRuntime.current !== pending) return;
+          setCompletedDisplays((items) => ({ ...items, [id]: display }));
+          setOverlay(null);
+          pendingRuntime.current = null;
+          if (speak && window.speechSynthesis)
+            window.speechSynthesis.speak(
+              new SpeechSynthesisUtterance(display.text),
+            );
+        })
+        .catch((e) => workspace.setError(e.message));
+    } else if (display.outcome) {
+      setDraft(pending.text);
+      setInputMode(pending.mode);
+      setInputLabel(pending.label);
+    }
+  });
+  const runtimeBusy = Object.values(runtimeChat.runs).some((run) =>
+    ["running", "offline", "resetting"].includes(run.phase),
+  );
+  const busy = workspace.busy || runtimeBusy;
   const media = useMediaInput(
     view?.generation_id,
     !!view?.storage_consent,
@@ -273,7 +379,16 @@ export default function Workspace() {
   const profileRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const activeChat = chats.find((chat) => chat.id === activeChatId);
+  const activeChat =
+    chats.find((chat) => chat.id === activeChatId) ||
+    (overlay && overlay.id === activeChatId
+      ? ({
+          id: overlay.id,
+          title: overlay.text.slice(0, 80),
+          messages: [],
+        } as Chat)
+      : undefined);
+  const activeRun = activeChatId ? runtimeChat.runs[activeChatId] : undefined;
   const matches = (chat: Chat) =>
     (chat.title + " " + chat.messages.map((m) => m.text).join(" "))
       .toLowerCase()
@@ -331,6 +446,10 @@ export default function Workspace() {
     const id = activeChatId || crypto.randomUUID();
     const text = draft.trim();
     try {
+      if (agentReplies) {
+        startRuntime(id, text, inputMode, inputLabel);
+        return;
+      }
       if (await workspace.send(id, text, inputMode, inputLabel)) {
         setActiveChatId(id);
         setDraft("");
@@ -345,6 +464,36 @@ export default function Workspace() {
     } catch (e) {
       workspace.setError((e as Error).message);
     }
+  }
+
+  function startRuntime(
+    id: string,
+    text: string,
+    mode: LearningInput["mode"] = "text",
+    label = "",
+  ) {
+    if (!view?.generation_id || !view.storage_consent) return false;
+    const pending = { id, text, mode, label };
+    pendingRuntime.current = pending;
+    const folder = folders.find(
+      (f) => f.id === chats.find((c) => c.id === id)?.folderId,
+    );
+    const submitted = runtimeChat.submit(id, text, {
+      generation_id: view.generation_id,
+      memory_scope: { chat_id: id, folder_path: folder ? [folder.name] : [] },
+      input_mode: mode,
+      ...(mode === "attachment" && label ? { source_title: label } : {}),
+    });
+    if (!submitted) {
+      pendingRuntime.current = null;
+      return false;
+    }
+    setOverlay({ id, text });
+    setActiveChatId(id);
+    setDraft("");
+    setInputLabel("");
+    setInputMode("text");
+    return true;
   }
 
   async function addFolder(event: FormEvent<HTMLFormElement>) {
@@ -731,10 +880,12 @@ export default function Workspace() {
                 <div
                   className={[
                     "conversation-body",
-                    activeChat?.messages.length ? "has-messages" : "is-empty",
+                    activeChat?.messages.length || overlay
+                      ? "has-messages"
+                      : "is-empty",
                   ].join(" ")}
                 >
-                  {activeChat?.messages.length ? (
+                  {activeChat && (activeChat.messages.length || overlay) ? (
                     <div className="message-list">
                       {activeChat.hasMore && (
                         <button
@@ -754,9 +905,123 @@ export default function Workspace() {
                               <Icon name="spark" size={19} />
                             </div>
                           )}
-                          <p>{message.text}</p>
+                          <div className="message-content">
+                            {message.role === "loke" ? (
+                              <>
+                                {activeChat.messages.at(-1)?.id ===
+                                  message.id &&
+                                completedDisplays[activeChat.id] &&
+                                message.text.startsWith(
+                                  completedDisplays[activeChat.id].text,
+                                ) ? (
+                                  completedDisplays[activeChat.id].blocks.map(
+                                    (block) =>
+                                      block.kind === "text" ? (
+                                        <ChatMarkdown
+                                          key={block.id}
+                                          text={block.text}
+                                        />
+                                      ) : (
+                                        <RuntimeElement
+                                          key={block.id}
+                                          element={block.element}
+                                          disabled={busy}
+                                          onChoose={(choice, question) =>
+                                            startRuntime(
+                                              activeChat.id,
+                                              `Question: ${question}\nSelected choice: ${choice}`,
+                                            )
+                                          }
+                                        />
+                                      ),
+                                  )
+                                ) : (
+                                  <ChatMarkdown text={message.text} />
+                                )}
+                                <CopyResponseButton text={message.text} />
+                              </>
+                            ) : (
+                              <p>{message.text}</p>
+                            )}
+                          </div>
                         </article>
                       ))}
+                      {overlay?.id === activeChatId && (
+                        <>
+                          <article className="message user">
+                            <p>{overlay.text}</p>
+                          </article>
+                          <article className="message loke">
+                            <div className="message-content">
+                              {overlay.display?.blocks.map((block) =>
+                                block.kind === "text" ? (
+                                  <ChatMarkdown
+                                    key={block.id}
+                                    text={block.text}
+                                    streaming={!overlay.display?.outcome}
+                                  />
+                                ) : (
+                                  <RuntimeElement
+                                    key={block.id}
+                                    element={block.element}
+                                    disabled={
+                                      busy ||
+                                      overlay.display?.outcome?.status !==
+                                        "completed"
+                                    }
+                                    onChoose={(choice, question) =>
+                                      startRuntime(
+                                        activeChatId!,
+                                        `Question: ${question}\nSelected choice: ${choice}`,
+                                      )
+                                    }
+                                  />
+                                ),
+                              )}
+                              {overlay.display?.outcome && (
+                                <p role="status">
+                                  {overlay.display.outcome.status ===
+                                  "completed"
+                                    ? "Saved locally."
+                                    : "This response was not saved. Your draft has been restored."}
+                                </p>
+                              )}
+                            </div>
+                          </article>
+                        </>
+                      )}
+                      {activeRun?.phase === "running" && (
+                        <div role="status">
+                          {activeRun.display.progress || "Thinking…"}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void runtimeChat.cancel(activeChatId!)
+                            }
+                          >
+                            Stop response
+                          </button>
+                        </div>
+                      )}
+                      {activeRun?.phase === "offline" && (
+                        <div role="alert">
+                          {activeRun.error}
+                          <button
+                            type="button"
+                            onClick={() => runtimeChat.retry(activeChatId!)}
+                          >
+                            Reconnect to same response
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void runtimeChat.cancel(activeChatId!)
+                            }
+                          >
+                            Cancel response
+                          </button>
+                        </div>
+                      )}
                       <div ref={messagesEndRef} />
                     </div>
                   ) : (
@@ -806,6 +1071,16 @@ export default function Workspace() {
                       </div>
                     )}
                     <div className="media-options">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={agentReplies}
+                          disabled={busy}
+                          onChange={(e) => setAgentReplies(e.target.checked)}
+                        />{" "}
+                        Streaming memory chat. Turn off to submit a study report
+                        to the learning coordinator.
+                      </label>
                       <label>
                         <input
                           type="checkbox"

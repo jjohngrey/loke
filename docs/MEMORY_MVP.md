@@ -1,7 +1,7 @@
 # Local memory MVP
 
 This slice connects the current chat UI to the existing PostgreSQL memory engine, adds usable
-file and voice input, and makes retention permanent by default. It builds on the Layer C4 branch.
+file and voice input, and makes retention permanent by default. It includes the latest main branch with the Layer C4 memory engine and streaming runtime.
 It does not claim completion of every future learning-policy feature in the weekend handoff.
 
 ## Acceptance
@@ -9,10 +9,11 @@ It does not claim completion of every future learning-policy feature in the week
 | Area | Delivered behavior |
 | --- | --- |
 | Consent | Explicit local storage consent and neural-signaling goal before content writes. |
-| Chat | Backend-generated responses, atomic user/assistant ledger, stable chat scope, reload/restart history, 100-message pages and older-message loading. |
+| Chat | Streaming agent replies plus a study-report path, backend-generated responses, atomic user/assistant ledger, stable chat scope, reload/restart history, 100-message pages and older-message loading. |
+| Runtime memory | Completed streaming responses commit before the terminal success event, use stored context for new sessions, and replay completed retries from PostgreSQL within the retry window. Delete cancels runs and clears process-local context. |
 | Organization | Persisted folders, chat-to-folder assignment, title metadata, learner/generation-scoped reads. |
 | Retention | Nullable learner deadline, no default expiry, migration of existing profile and retry-snapshot deadlines; explicit delete still cascades and rotates generation. |
-| Attachments | TXT/Markdown/text-PDF extraction, 5 MB byte cap, 15,000-character draft cap, editable preview, explicit Send, source/report provenance without grading. |
+| Attachments | TXT/Markdown/text-PDF extraction, 5 MB byte cap, 15,000-character draft cap, editable preview, explicit Send, source provenance without grading; the study-report path also records an unassessed report. |
 | Voice | Microphone or audio upload, supported MIME selection, 30-second timer, 1 MB cap, local audio decoding/type/duration checks, OpenAI transcription, editable draft, explicit Send. |
 | Voice output | Opt-in browser speech synthesis for committed replies. Browser/OS voice services may have their own network behavior. |
 | Recovery | Frozen request IDs/payloads for uncertain retries; conflicts refresh without replay; drafts survive failed saves; stale reset responses ignored. |
@@ -25,8 +26,13 @@ It does not claim completion of every future learning-policy feature in the week
 - Voice is clip-based transcription plus optional browser speech, not a continuous realtime or
   interruptible voice session. FFmpeg (ffmpeg and ffprobe) and OPENAI_API_KEY are required.
   No paid-provider or physical microphone calls are made by automated tests.
-- Demo mode supports the reviewed neural-signaling curriculum. It is not a general-purpose LLM
-  chat service. Live explanations remain opt-in through existing OpenRouter configuration.
+- The study coordinator supports the reviewed neural-signaling curriculum; its goal setup remains
+  neuroscience-specific. Streaming demo replies use the existing offline runtime adapter. General
+  live replies require the existing OpenRouter configuration. No credentials are changed here.
+- Streaming tool-choice cards stay interactive during the current browser session. After restart,
+  the permanently saved transcript includes each question and its choices as readable text.
+  The legacy runtime API remains available without memory_scope for process-local callers; the
+  browser always sends memory_scope and a generation guard for durable chat.
 - Original files and audio are not archived. PDF OCR, images, Office files and video are unsupported.
   This local PDF parser is not a hardened public upload sandbox.
 - Source graph discovery/execution, explicit quiz start/cancel, plan activity completion and

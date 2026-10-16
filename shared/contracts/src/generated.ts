@@ -155,6 +155,7 @@ export type Text4 = string;
 export type Provenance = "audio_transcription";
 export type Saved = false;
 export type Detail = string;
+export type StateRevision2 = number;
 export type GenerationId8 = string;
 export type Id4 = string;
 export type Title3 = string;
@@ -219,7 +220,7 @@ export type MatchedAgentIds1 =
   | [string, string, string, string]
   | [string, string, string, string, string];
 export type GenerationId12 = string;
-export type StateRevision2 = number | null;
+export type StateRevision3 = number | null;
 export type PlanRevision2 = number | null;
 export type GraphVersion2 = string | null;
 export type Id9 = string;
@@ -280,6 +281,62 @@ export type InspectedPassageIds = string[];
 export type OmittedPassageIds = string[];
 export type Clarification = string | null;
 export type Warnings = string[];
+export type GenerationId14 = string | null;
+export type InputMode = "text" | "voice" | "attachment";
+export type SourceTitle1 = string | null;
+export type SessionId = string;
+export type SessionEpoch = number;
+export type RequestId7 = string;
+export type Text9 = string;
+export type GenerationId15 = string | null;
+export type SessionId1 = string;
+export type SessionEpoch1 = number;
+export type RequestId8 = string;
+export type GenerationId16 = string | null;
+export type SessionId2 = string;
+export type SessionEpoch2 = number;
+export type SessionId3 = string;
+export type SessionEpoch3 = number;
+export type RunId = string;
+export type Status3 = "running" | "completed" | "failed" | "cancelled";
+export type ModelCalls = number;
+export type ToolCalls = number;
+export type TotalCalls = number;
+export type DeadlineSeconds = number;
+export type ContextChars = number;
+export type OutputChars = number;
+export type ResultChars = number;
+export type MaxFailures = number;
+export type RunId1 = string;
+export type RequestId9 = string;
+export type SessionEpoch4 = number;
+export type Sequence1 = number;
+export type Type = "progress" | "message_delta" | "element" | "outcome";
+export type CallId = string | null;
+export type Message = string | null;
+export type Question = string;
+/**
+ * @minItems 3
+ * @maxItems 5
+ */
+export type Choices =
+  [Choice, Choice, Choice] | [Choice, Choice, Choice, Choice] | [Choice, Choice, Choice, Choice, Choice];
+export type Id15 = string;
+export type Text10 = string;
+export type Type1 = "multiple_choice";
+export type ElementId = string;
+export type RunId2 = string;
+export type RequestId10 = string;
+export type SessionEpoch5 = number;
+export type Status4 = "completed" | "failed" | "cancelled";
+export type Text11 = string;
+export type Elements = MultipleChoiceElement[];
+export type Reason1 = string | null;
+export type ModelCalls1 = number;
+export type ToolCalls1 = number;
+export type PromptTokens = number;
+export type CompletionTokens = number;
+export type ElapsedMs = number;
 
 export interface PublishedContracts {
   goal: GoalInput;
@@ -306,6 +363,14 @@ export interface PublishedContracts {
   memory_context: MemoryContext;
   source_document: SourceDocument;
   source_graph: SourceGraph;
+  runtime_request: RuntimeRequest;
+  runtime_control: RuntimeControl;
+  runtime_reset: RuntimeReset;
+  runtime_reset_result: RuntimeResetResult;
+  runtime_cancel_result: RuntimeCancelResult;
+  run_limits: RunLimits;
+  run_event: RunEvent;
+  run_outcome: RunOutcome;
 }
 export interface GoalInput {
   generation_id?: GenerationId;
@@ -492,6 +557,7 @@ export interface ApiError {
   detail: Detail;
 }
 export interface WorkspaceView {
+  state_revision: StateRevision2;
   generation_id: GenerationId8;
   chats: Chats;
   folders: Folders;
@@ -561,7 +627,7 @@ export interface MemoryTurn {
 }
 export interface CommitGuard {
   generation_id: GenerationId12;
-  state_revision?: StateRevision2;
+  state_revision?: StateRevision3;
   plan_revision?: PlanRevision2;
   graph_version?: GraphVersion2;
 }
@@ -642,4 +708,81 @@ export interface SourceCitation {
   start: Start1;
   end: End1;
   quote: Quote;
+}
+export interface RuntimeRequest {
+  memory_scope?: ChatScope | null;
+  generation_id?: GenerationId14;
+  input_mode?: InputMode;
+  source_title?: SourceTitle1;
+  session_id: SessionId;
+  session_epoch?: SessionEpoch;
+  request_id: RequestId7;
+  text: Text9;
+}
+export interface RuntimeControl {
+  generation_id?: GenerationId15;
+  session_id: SessionId1;
+  session_epoch: SessionEpoch1;
+  request_id: RequestId8;
+}
+export interface RuntimeReset {
+  generation_id?: GenerationId16;
+  session_id: SessionId2;
+  session_epoch: SessionEpoch2;
+}
+export interface RuntimeResetResult {
+  session_id: SessionId3;
+  session_epoch: SessionEpoch3;
+}
+export interface RuntimeCancelResult {
+  run_id: RunId;
+  status: Status3;
+}
+export interface RunLimits {
+  model_calls?: ModelCalls;
+  tool_calls?: ToolCalls;
+  total_calls?: TotalCalls;
+  deadline_seconds?: DeadlineSeconds;
+  context_chars?: ContextChars;
+  output_chars?: OutputChars;
+  result_chars?: ResultChars;
+  max_failures?: MaxFailures;
+}
+export interface RunEvent {
+  run_id: RunId1;
+  request_id: RequestId9;
+  session_epoch: SessionEpoch4;
+  sequence: Sequence1;
+  type: Type;
+  call_id?: CallId;
+  message?: Message;
+  element?: MultipleChoiceElement | null;
+  outcome?: RunOutcome | null;
+}
+export interface MultipleChoiceElement {
+  question: Question;
+  choices: Choices;
+  type?: Type1;
+  element_id: ElementId;
+}
+export interface Choice {
+  id: Id15;
+  text: Text10;
+}
+export interface RunOutcome {
+  run_id: RunId2;
+  request_id: RequestId10;
+  session_epoch: SessionEpoch5;
+  status: Status4;
+  text: Text11;
+  elements?: Elements;
+  reason?: Reason1;
+  usage: RunUsage;
+}
+export interface RunUsage {
+  model_calls?: ModelCalls1;
+  tool_calls?: ToolCalls1;
+  prompt_tokens?: PromptTokens;
+  completion_tokens?: CompletionTokens;
+  elapsed_ms?: ElapsedMs;
 }

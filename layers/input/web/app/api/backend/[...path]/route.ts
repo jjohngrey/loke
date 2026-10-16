@@ -17,19 +17,32 @@ const allowed = new Set([
   "demo/clock",
   "learner",
   "audio/transcribe",
+  "runtime/run",
+  "runtime/cancel",
+  "runtime/reset",
 ]);
 async function proxy(
   req: Request,
   context: { params: Promise<{ path: string[] }> },
 ) {
   const origin = req.headers.get("origin");
-  const own = new URL(req.url);
-  if (
-    origin &&
-    (origin !== own.origin ||
-      !["127.0.0.1", "localhost"].includes(own.hostname))
-  )
-    return Response.json({ detail: "Unsupported origin." }, { status: 403 });
+  if (origin) {
+    try {
+      const source = new URL(origin);
+      const target = new URL(req.url);
+      if (
+        source.protocol !== "http:" ||
+        !["127.0.0.1", "localhost"].includes(source.hostname) ||
+        source.port !== target.port
+      )
+        return Response.json(
+          { detail: "Unsupported origin." },
+          { status: 403 },
+        );
+    } catch {
+      return Response.json({ detail: "Unsupported origin." }, { status: 403 });
+    }
+  }
   const { path } = await context.params;
   const route = path.join("/");
   const query = new URL(req.url).search;
@@ -77,17 +90,24 @@ async function proxy(
         headers,
         body: body as BodyInit | undefined,
         cache: "no-store",
-        signal: AbortSignal.timeout(35000),
+        signal: AbortSignal.any([req.signal, AbortSignal.timeout(35000)]),
       },
     );
-    return new Response(await upstream.arrayBuffer(), {
-      status: upstream.status,
-      headers: {
-        "content-type":
-          upstream.headers.get("content-type") || "application/json",
-        "cache-control": "no-store",
+    const streaming = upstream.headers
+      .get("content-type")
+      ?.startsWith("application/x-ndjson");
+    return new Response(
+      streaming ? upstream.body : await upstream.arrayBuffer(),
+      {
+        status: upstream.status,
+        headers: {
+          "content-type":
+            upstream.headers.get("content-type") || "application/json",
+          "cache-control": "no-store",
+          ...(streaming ? { "x-accel-buffering": "no" } : {}),
+        },
       },
-    });
+    );
   } catch {
     return Response.json(
       {

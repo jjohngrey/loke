@@ -207,6 +207,7 @@ class ChatSummary(Contract):
 
 
 class WorkspaceView(Contract):
+    state_revision: int
     generation_id: str
     chats: list[ChatSummary]
     folders: list[WorkspaceFolder]

@@ -154,7 +154,11 @@ export function useWorkspace(activeId: string | null, onReset: () => void) {
       };
       if (pages.some((p) => p.generation_id !== next.generation_id)) return;
       applyView(next);
-      if (workspace.generation_id !== next.generation_id) return;
+      if (
+        workspace.generation_id !== next.generation_id ||
+        (current.current?.state_revision ?? 0) > workspace.state_revision
+      )
+        return;
       setCapabilities(caps);
       setFolders(workspace.folders);
       setHasMoreChats(!!workspace.has_more);
@@ -265,6 +269,7 @@ export function useWorkspace(activeId: string | null, onReset: () => void) {
     ready,
     hasMoreChats,
     canRetry,
+    reload: () => refresh(),
     loadMoreChats: () =>
       refresh(loadedPages.current * 100)
         .then(() => {

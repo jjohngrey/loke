@@ -1,17 +1,29 @@
 const { app, BrowserWindow, shell, session } = require("electron");
-function localOrigin(url) {
+const allowedResources = new Set(["nba.uth.tmc.edu"]);
+
+function isAppUrl(value) {
   try {
-    return new URL(url).origin === "http://127.0.0.1:3000";
+    return new URL(value).origin === "http://127.0.0.1:3000";
   } catch {
     return false;
   }
 }
-const allowedResources = new Set(["nba.uth.tmc.edu"]);
+
+function canUsePermission(webContents, permission, requestingUrl) {
+  return ["media", "clipboard-sanitized-write"].includes(permission) &&
+    isAppUrl(webContents?.getURL()) && isAppUrl(requestingUrl);
+}
+
 app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler(
-    (webContents, permission, callback) => {
-      callback(localOrigin(webContents.getURL()) && permission === "media");
+    (webContents, permission, callback, details) => {
+      callback(canUsePermission(webContents, permission, details.requestingUrl));
     },
+  );
+  session.defaultSession.setPermissionCheckHandler(
+    (webContents, permission, requestingOrigin, details) =>
+      isAppUrl(requestingOrigin) &&
+      canUsePermission(webContents, permission, details.requestingUrl || requestingOrigin),
   );
   const window = new BrowserWindow({
     width: 1320,
@@ -36,7 +48,7 @@ app.whenReady().then(() => {
     return { action: "deny" };
   });
   window.webContents.on("will-navigate", (event, url) => {
-    if (!localOrigin(url)) event.preventDefault();
+    if (!url.startsWith("http://127.0.0.1:3000/")) event.preventDefault();
   });
   window.loadURL("http://127.0.0.1:3000");
 });

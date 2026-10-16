@@ -52,8 +52,9 @@ reset saved history. Unsaved composer drafts are temporary.
 - Chat history loads in pages of 100 messages. Older pages remain available. Folder organization
   and conversation scopes are persisted. Settings offers explicit history deletion.
 - Study displays the current plan, diagnostic question and recent source excerpts; Activity shows
-  recent evidence and in-app review reminders. Default demo replies are deterministic, not a
-  general-purpose conversational model. Live explanations need OpenRouter configuration.
+  recent evidence and in-app review reminders. The default chat path preserves streaming agent replies and interactive choices while saving
+  completed conversations. Turn off streaming memory chat to submit a study report. Demo replies
+  use offline adapters; live replies need OpenRouter configuration.
 
 See [memory MVP acceptance and limits](docs/MEMORY_MVP.md) for the implemented boundary.
 
@@ -65,8 +66,61 @@ See [memory MVP acceptance and limits](docs/MEMORY_MVP.md) for the implemented b
 - Durable in-app review notifications with a visibly accelerated demo clock.
 - Learning-history deletion, expiry and cross-layer typed contracts.
 - Optional OpenRouter explanation and direct OpenAI transcription adapters.
+- Chat agent runtime with bounded tool execution, streamed progress, Stop/Retry/Reset controls,
+  and one model-authored multiple-choice response tool.
 
 Demo mode uses reviewed cards and code rules. It does not simulate a successful audio transcription. Live APIs need explicit keys and billing; no key is needed to verify the core loop. Set MODEL_MODE=live for OpenRouter and OPENAI_API_KEY for audio. Review the layer README extension points before treating the scaffold as complete.
+
+## Chat runtime
+
+Chat now calls an independent agent runtime; it does not invoke learning policy or write
+the learner database. In demo mode, ask for **options** to exercise the example tool,
+then select an option to send an ordinary follow-up. The demo adapter supplies fixture
+responses; `MODEL_MODE=live` uses server-side OpenRouter tool calling with the existing
+`OPENROUTER_API_KEY`, `TEXT_MODEL` and `OPENROUTER_PROVIDER` configuration. Live chat
+omits the completion-token cap and uses the provider/model default. Reasoning models
+can additionally use `OPENROUTER_REASONING_EFFORT` (for example, `low`). The runtime's
+28-second deadline and 6,000-character visible-output limit still apply.
+
+Provider failures return controlled, actionable messages. Server logs emit
+`runtime_request_failed` with the run ID, error category, HTTP status and numeric provider
+code when available, bounded provider request ID, model/provider settings, timing, call
+counts and stack locations. Structured handlers can read the same `runtime_diagnostic`
+record field. Completed provider responses emit `runtime_model_response` with safe stream
+diagnostics and numeric prompt, completion and (when supplied) reasoning-token usage.
+Logs omit raw exception messages, response bodies, headers, prompts and stack locals; use
+the provider request ID to investigate further with the provider.
+
+The engine in `agent_runtime.py` injects a model, tool registry and session store.
+`runtime_tools.py` registers the single `generate_multiple_choice_response` handler
+with strict input/output schemas, permission and execution limits. The UI maps the
+`multiple_choice` element type to its renderer. Python runtime contracts live in
+`shared/contracts/loke_contracts/runtime.py`; the normal exporter generates frontend types.
+
+The authenticated proxy exposes POST `runtime/run` (`session_id`, `session_epoch`,
+`request_id`, `text`), `runtime/cancel` (same identity fields without text), and
+`runtime/reset` (`session_id`, `session_epoch`). Run responses are newline-delimited
+`RunEvent` JSON: ordered progress, text deltas, validated elements, then one terminal
+`RunOutcome` with status, reason and usage. Public text deltas append; the outcome text
+is authoritative. Cards merge by run/element ID across progress and final replay.
+
+Disconnect detaches the stream while the run continues within its deadline. Retry
+reuses the exact request and replays/attaches to that run. Stop explicitly cancels it;
+unmount also attempts cancellation. Reset rotates the session epoch, cancels old runs
+and clears conversation; stale outputs are ignored. These sessions are process-local:
+backend/browser restarts lose continuity. The store keeps up to 100 session identities,
+32 completed outcomes and 64 conversation groups per session, with at most eight active
+or queued runs per session. Deduplication applies within the retained outcome window.
+
+Default limits are four model calls, four tool calls, eight total calls and a 28-second
+deadline including queue time, below the proxy's 35-second timeout. The final model call
+reserves capacity to respond without more tools. Provider context includes at most
+24,000 serialized characters, text output 6,000, tool results 6,000, and each tool has
+a three-second timeout. Two tool errors trigger finalization. Limits are injected via
+`RunLimits`; stop reasons are explicit, and diagnostics record IDs, timing/status and usage.
+
+Verify with `npm run check`, `node --test tests/test_runtime_client.mjs`, and a browser
+pass covering options → card → selection → follow-up, Stop, Reset and reconnect/Retry.
 
 ## PostgreSQL
 

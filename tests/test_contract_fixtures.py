@@ -161,7 +161,12 @@ def test_http_examples_and_openapi(pg_url, monkeypatch):
             if not path.startswith("/api/"):
                 continue
             for operation in operations.values():
+                if path == "/api/runtime/run":
+                    assert set(operation["responses"]["200"]["content"]) == {"application/x-ndjson"}
+                    continue
                 expected = {
+                    "/api/runtime/cancel": "RuntimeCancelResult",
+                    "/api/runtime/reset": "RuntimeResetResult",
                     "/api/audio/transcribe": "TranscriptionResult",
                     "/api/capabilities": "AppCapabilities",
                     "/api/workspace": "WorkspaceView",

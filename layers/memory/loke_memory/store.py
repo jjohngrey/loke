@@ -87,6 +87,8 @@ class Store(TieredMemory):
         return result
 
     def workspace(self, learner_id, offset=0, limit=100):
+        if offset < 0 or not 1 <= limit <= 100:
+            raise ValueError("Workspace pages require a nonnegative offset and limit 1 to 100.")
         from .tiered_tables import messages
         with self.engine.begin() as conn:
             generation = self._lock(conn, learner_id)
@@ -105,10 +107,12 @@ class Store(TieredMemory):
                 meta = metadata.get(row["chat_id"], {})
                 chats.append(dict(id=row["chat_id"], title=meta.get("title", data["text"][:80]),
                     folder_id=meta.get("folder_id")))
-            return dict(generation_id=generation, chats=chats,
+            return dict(generation_id=generation, state_revision=profile["state_revision"], chats=chats,
                 folders=profile.get("workspace_folders", []), has_more=len(rows) > limit)
 
     def chat_history(self, learner_id, chat_id, generation_id, before=None, limit=100):
+        if not 1 <= limit <= 100 or (before is not None and before < 1):
+            raise ValueError("History pages require a positive cursor and limit 1 to 100.")
         from .tiered_tables import messages
         with self.engine.begin() as conn:
             generation = self._lock(conn, learner_id)

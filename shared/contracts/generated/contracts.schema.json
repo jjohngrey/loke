@@ -358,6 +358,29 @@
       "title": "ChatSummary",
       "type": "object"
     },
+    "Choice": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "Choice",
+      "type": "object"
+    },
     "ClockAdvance": {
       "additionalProperties": false,
       "properties": {
@@ -1562,6 +1585,45 @@
       "title": "MemoryTurn",
       "type": "object"
     },
+    "MultipleChoiceElement": {
+      "additionalProperties": false,
+      "properties": {
+        "question": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "choices": {
+          "items": {
+            "$ref": "#/$defs/Choice"
+          },
+          "maxItems": 5,
+          "minItems": 3,
+          "title": "Choices",
+          "type": "array"
+        },
+        "type": {
+          "const": "multiple_choice",
+          "default": "multiple_choice",
+          "title": "Type",
+          "type": "string"
+        },
+        "element_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Element Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "question",
+        "choices",
+        "element_id"
+      ],
+      "title": "MultipleChoiceElement",
+      "type": "object"
+    },
     "NextActivity": {
       "additionalProperties": false,
       "properties": {
@@ -1832,6 +1894,456 @@
         "enabled"
       ],
       "title": "ReminderSettings",
+      "type": "object"
+    },
+    "RunEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "request_id": {
+          "title": "Request Id",
+          "type": "string"
+        },
+        "session_epoch": {
+          "title": "Session Epoch",
+          "type": "integer"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "type": {
+          "enum": [
+            "progress",
+            "message_delta",
+            "element",
+            "outcome"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "call_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Call Id"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        },
+        "element": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MultipleChoiceElement"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "run_id",
+        "request_id",
+        "session_epoch",
+        "sequence",
+        "type"
+      ],
+      "title": "RunEvent",
+      "type": "object"
+    },
+    "RunLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "model_calls": {
+          "default": 4,
+          "maximum": 10,
+          "minimum": 2,
+          "title": "Model Calls",
+          "type": "integer"
+        },
+        "tool_calls": {
+          "default": 4,
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Tool Calls",
+          "type": "integer"
+        },
+        "total_calls": {
+          "default": 8,
+          "maximum": 20,
+          "minimum": 2,
+          "title": "Total Calls",
+          "type": "integer"
+        },
+        "deadline_seconds": {
+          "default": 28.0,
+          "exclusiveMinimum": 0,
+          "maximum": 30,
+          "title": "Deadline Seconds",
+          "type": "number"
+        },
+        "context_chars": {
+          "default": 24000,
+          "maximum": 64000,
+          "minimum": 2000,
+          "title": "Context Chars",
+          "type": "integer"
+        },
+        "output_chars": {
+          "default": 6000,
+          "maximum": 16000,
+          "minimum": 100,
+          "title": "Output Chars",
+          "type": "integer"
+        },
+        "result_chars": {
+          "default": 6000,
+          "maximum": 16000,
+          "minimum": 256,
+          "title": "Result Chars",
+          "type": "integer"
+        },
+        "max_failures": {
+          "default": 2,
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Max Failures",
+          "type": "integer"
+        }
+      },
+      "title": "RunLimits",
+      "type": "object"
+    },
+    "RunOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "request_id": {
+          "title": "Request Id",
+          "type": "string"
+        },
+        "session_epoch": {
+          "title": "Session Epoch",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "failed",
+            "cancelled"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "elements": {
+          "items": {
+            "$ref": "#/$defs/MultipleChoiceElement"
+          },
+          "title": "Elements",
+          "type": "array"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "usage": {
+          "$ref": "#/$defs/RunUsage"
+        }
+      },
+      "required": [
+        "run_id",
+        "request_id",
+        "session_epoch",
+        "status",
+        "text",
+        "usage"
+      ],
+      "title": "RunOutcome",
+      "type": "object"
+    },
+    "RunUsage": {
+      "additionalProperties": false,
+      "properties": {
+        "model_calls": {
+          "default": 0,
+          "title": "Model Calls",
+          "type": "integer"
+        },
+        "tool_calls": {
+          "default": 0,
+          "title": "Tool Calls",
+          "type": "integer"
+        },
+        "prompt_tokens": {
+          "default": 0,
+          "title": "Prompt Tokens",
+          "type": "integer"
+        },
+        "completion_tokens": {
+          "default": 0,
+          "title": "Completion Tokens",
+          "type": "integer"
+        },
+        "elapsed_ms": {
+          "default": 0,
+          "title": "Elapsed Ms",
+          "type": "integer"
+        }
+      },
+      "title": "RunUsage",
+      "type": "object"
+    },
+    "RuntimeCancelResult": {
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "running",
+            "completed",
+            "failed",
+            "cancelled"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "status"
+      ],
+      "title": "RuntimeCancelResult",
+      "type": "object"
+    },
+    "RuntimeControl": {
+      "additionalProperties": false,
+      "properties": {
+        "generation_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation Id"
+        },
+        "session_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "session_epoch": {
+          "minimum": 0,
+          "title": "Session Epoch",
+          "type": "integer"
+        },
+        "request_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "session_epoch",
+        "request_id"
+      ],
+      "title": "RuntimeControl",
+      "type": "object"
+    },
+    "RuntimeRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "memory_scope": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChatScope"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "generation_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation Id"
+        },
+        "input_mode": {
+          "default": "text",
+          "enum": [
+            "text",
+            "voice",
+            "attachment"
+          ],
+          "title": "Input Mode",
+          "type": "string"
+        },
+        "source_title": {
+          "anyOf": [
+            {
+              "maxLength": 255,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Title"
+        },
+        "session_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "session_epoch": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Session Epoch",
+          "type": "integer"
+        },
+        "request_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 15000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "request_id",
+        "text"
+      ],
+      "title": "RuntimeRequest",
+      "type": "object"
+    },
+    "RuntimeReset": {
+      "additionalProperties": false,
+      "properties": {
+        "generation_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation Id"
+        },
+        "session_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "session_epoch": {
+          "minimum": 0,
+          "title": "Session Epoch",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session_id",
+        "session_epoch"
+      ],
+      "title": "RuntimeReset",
+      "type": "object"
+    },
+    "RuntimeResetResult": {
+      "additionalProperties": false,
+      "properties": {
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "session_epoch": {
+          "title": "Session Epoch",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session_id",
+        "session_epoch"
+      ],
+      "title": "RuntimeResetResult",
       "type": "object"
     },
     "SourceChunk": {
@@ -2261,6 +2773,10 @@
     "WorkspaceView": {
       "additionalProperties": false,
       "properties": {
+        "state_revision": {
+          "title": "State Revision",
+          "type": "integer"
+        },
         "generation_id": {
           "title": "Generation Id",
           "type": "string"
@@ -2286,6 +2802,7 @@
         }
       },
       "required": [
+        "state_revision",
         "generation_id",
         "chats",
         "folders"
@@ -2367,6 +2884,30 @@
     },
     "source_graph": {
       "$ref": "#/$defs/SourceGraph"
+    },
+    "runtime_request": {
+      "$ref": "#/$defs/RuntimeRequest"
+    },
+    "runtime_control": {
+      "$ref": "#/$defs/RuntimeControl"
+    },
+    "runtime_reset": {
+      "$ref": "#/$defs/RuntimeReset"
+    },
+    "runtime_reset_result": {
+      "$ref": "#/$defs/RuntimeResetResult"
+    },
+    "runtime_cancel_result": {
+      "$ref": "#/$defs/RuntimeCancelResult"
+    },
+    "run_limits": {
+      "$ref": "#/$defs/RunLimits"
+    },
+    "run_event": {
+      "$ref": "#/$defs/RunEvent"
+    },
+    "run_outcome": {
+      "$ref": "#/$defs/RunOutcome"
     }
   },
   "required": [
@@ -2393,7 +2934,15 @@
     "chat_scope",
     "memory_context",
     "source_document",
-    "source_graph"
+    "source_graph",
+    "runtime_request",
+    "runtime_control",
+    "runtime_reset",
+    "runtime_reset_result",
+    "runtime_cancel_result",
+    "run_limits",
+    "run_event",
+    "run_outcome"
   ],
   "title": "PublishedContracts",
   "type": "object"

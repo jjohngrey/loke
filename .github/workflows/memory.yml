@@ -34,6 +34,7 @@ jobs:
       - run: uv sync --locked
       - run: npm ci
       - run: npm run check
+      - run: node --test tests/test_runtime_client.mjs tests/test_desktop_permissions.cjs
       - run: uv run ruff check .
       - run: git diff --exit-code -- shared/contracts/generated shared/contracts/src/generated.ts
       - run: npm run build
