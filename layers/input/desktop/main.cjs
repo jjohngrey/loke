@@ -1,13 +1,29 @@
 const { app, BrowserWindow, shell, session } = require("electron");
 const allowedResources = new Set(["nba.uth.tmc.edu"]);
+
+function isAppUrl(value) {
+  try {
+    return new URL(value).origin === "http://127.0.0.1:3000";
+  } catch {
+    return false;
+  }
+}
+
+function canUsePermission(webContents, permission, requestingUrl) {
+  return ["media", "clipboard-sanitized-write"].includes(permission) &&
+    isAppUrl(webContents?.getURL()) && isAppUrl(requestingUrl);
+}
+
 app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler(
-    (webContents, permission, callback) => {
-      callback(
-        webContents.getURL().startsWith("http://127.0.0.1:3000") &&
-          permission === "media",
-      );
+    (webContents, permission, callback, details) => {
+      callback(canUsePermission(webContents, permission, details.requestingUrl));
     },
+  );
+  session.defaultSession.setPermissionCheckHandler(
+    (webContents, permission, requestingOrigin, details) =>
+      isAppUrl(requestingOrigin) &&
+      canUsePermission(webContents, permission, details.requestingUrl || requestingOrigin),
   );
   const window = new BrowserWindow({
     width: 1320,
