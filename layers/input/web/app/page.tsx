@@ -93,6 +93,7 @@ type IconName =
   | "settings"
   | "logout"
   | "close"
+  | "copy"
   | "check";
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
@@ -160,6 +161,12 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
       </>
     ),
     close: <path d="M5 5l14 14M19 5 5 19" />,
+    copy: (
+      <>
+        <rect x="8" y="8" width="12" height="13" rx="2" />
+        <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3" />
+      </>
+    ),
     check: <path d="m5 12 4 4L19 6" />,
   };
   return (
@@ -176,6 +183,44 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     >
       {paths[name]}
     </svg>
+  );
+}
+
+function CopyResponseButton({ text }: { text: string }) {
+  const [copyState, setCopyState] = useState<"ready" | "copied" | "error">("ready");
+
+  useEffect(() => {
+    if (copyState !== "copied") return;
+    const timer = window.setTimeout(() => setCopyState("ready"), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copyState]);
+
+  async function copyResponse() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyState("copied");
+    } catch {
+      setCopyState("error");
+    }
+  }
+
+  const label = copyState === "copied" ? "Copied" : "Copy response as Markdown";
+
+  return (
+    <div className="message-actions">
+      <button
+        type="button"
+        className="icon-button"
+        aria-label={label}
+        title={label}
+        onClick={() => void copyResponse()}
+      >
+        <Icon name={copyState === "copied" ? "check" : "copy"} size={18} />
+      </button>
+      <span role="status" className={copyState === "error" ? "message-copy-error" : "sr-only"}>
+        {copyState === "copied" ? "Response copied." : copyState === "error" ? "Copy failed. Try again." : ""}
+      </span>
+    </div>
   );
 }
 
@@ -683,6 +728,10 @@ export default function Workspace() {
                               : message.text && (message.role === "loke"
                                 ? <ChatMarkdown text={message.text} />
                                 : <p>{message.text}</p>)}
+                            {message.role === "loke" && message.text.trim() &&
+                              (!message.runtime || message.runtime.outcome) && (
+                                <CopyResponseButton text={message.text} />
+                              )}
                           </div>
                         </article>
                       ))}
