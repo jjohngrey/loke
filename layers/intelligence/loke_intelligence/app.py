@@ -1,11 +1,13 @@
 """Composition root is the only intelligence file importing the memory implementation."""
 
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from loke_contracts.models import (
     AnswerInput,
     ApiError,
@@ -16,19 +18,36 @@ from loke_contracts.models import (
     ReminderSettings,
     TranscriptionResult,
 )
+from loke_contracts.runtime import (
+    RuntimeCancelResult,
+    RuntimeControl,
+    RuntimeRequest,
+    RuntimeReset,
+    RuntimeResetResult,
+)
 from loke_memory.store import ConflictError, Store
 from loke_memory.tiered import MemoryLimits
 
+from .agent_runtime import AgentRuntime, InMemorySessionStore, RuntimeCapacity, RuntimeConflict
 from .audio import transcribe
 from .coordinator import Coordinator
 from .openrouter import OpenRouterError
+from .runtime_model import DemoRuntimeModel, OpenRouterRuntimeModel
+from .runtime_tools import example_registry
 from .scheduler import ReviewScheduler
 
 ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT / ".env")
 
 
-def create_app(database_url: str | None = None, learner_id: str | None = None):
+def create_app(database_url: str | None = None, learner_id: str | None = None,
+               agent_runtime: AgentRuntime | None = None):
+    # Uvicorn configures its own loggers, leaving application INFO logs disabled.
+    model_logger = logging.getLogger(f"{__package__}.runtime_model")
+    if model_logger.level == logging.NOTSET:
+        model_logger.setLevel(logging.INFO)
+    if not model_logger.hasHandlers():
+        model_logger.addHandler(logging.StreamHandler())
     store = Store(database_url or os.getenv("DATABASE_URL", "postgresql+psycopg://loke:loke@127.0.0.1:5432/loke"),
         MemoryLimits(summary_trigger=int(os.getenv("MEMORY_SUMMARY_TRIGGER_MESSAGES", "100")),
                      recent_messages=int(os.getenv("MEMORY_RECENT_MESSAGES", "40")),
@@ -45,11 +64,16 @@ def create_app(database_url: str | None = None, learner_id: str | None = None):
     )
     selected_learner = learner_id or os.getenv("DEMO_LEARNER_ID", "demo-learner")
     token = os.getenv("SESSION_TOKEN", "local-demo-change-me")
+    runtime_engine = agent_runtime or AgentRuntime(
+        OpenRouterRuntimeModel() if mode == "live" else DemoRuntimeModel(),
+        example_registry(), InMemorySessionStore(),
+    )
 
     @asynccontextmanager
     async def lifespan(app):
         await scheduler.start()
         yield
+        await runtime_engine.shutdown()
         await scheduler.stop()
         store.engine.dispose()
 
@@ -61,6 +85,7 @@ def create_app(database_url: str | None = None, learner_id: str | None = None):
     )
     app.state.store = store
     app.state.coordinator = coordinator
+    app.state.runtime = runtime_engine
 
     def authorize(x_loke_session: str = Header(default="")):
         import secrets
@@ -73,7 +98,8 @@ def create_app(database_url: str | None = None, learner_id: str | None = None):
         from fastapi.responses import JSONResponse
 
         return JSONResponse(
-            status_code=409 if isinstance(exc, ConflictError) else 400, content={"detail": str(exc)}
+            status_code=(409 if isinstance(exc, (ConflictError, RuntimeConflict)) else
+                         429 if isinstance(exc, RuntimeCapacity) else 400), content={"detail": str(exc)}
         )
 
     @app.exception_handler(OpenRouterError)
@@ -91,6 +117,30 @@ def create_app(database_url: str | None = None, learner_id: str | None = None):
         return {"status": "ok", "mode": mode}
 
     protected = [Depends(authorize)]
+
+    @app.post("/api/runtime/run", dependencies=protected, response_class=StreamingResponse,
+              responses={200: {"content": {"application/x-ndjson": {"schema": {"type": "string"}}}}})
+    async def runtime_run(payload: RuntimeRequest):
+        run = runtime_engine.reserve(selected_learner, payload)
+
+        async def events():
+            async for event in run.stream():
+                yield event.model_dump_json() + "\n"
+
+        # Disconnect detaches the subscriber; the bounded run continues for identical-ID retry.
+        return StreamingResponse(events(), media_type="application/x-ndjson",
+                                 headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+    @app.post("/api/runtime/cancel", dependencies=protected, response_model=RuntimeCancelResult)
+    async def runtime_cancel(payload: RuntimeControl):
+        run = runtime_engine.cancel(selected_learner, payload.session_id,
+                                    payload.session_epoch, payload.request_id)
+        return RuntimeCancelResult(run_id=run.run_id, status=run.status)
+
+    @app.post("/api/runtime/reset", dependencies=protected, response_model=RuntimeResetResult)
+    async def runtime_reset(payload: RuntimeReset):
+        epoch = runtime_engine.reset(selected_learner, payload.session_id, payload.session_epoch)
+        return RuntimeResetResult(session_id=payload.session_id, session_epoch=epoch)
 
     @app.get("/api/view", dependencies=protected, response_model=LearningView)
     def view():

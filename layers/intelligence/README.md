@@ -18,6 +18,11 @@ Source-scoped graph discovery is now available independently of the catalog: see
 citations and labels inferred prerequisites, with an optional model adapter and offline demo.
 PDF/text upload, graph persistence and the learner UI remain integration work.
 
+Standalone hybrid graph orchestration now composes the source planner with optional model routing,
+bounded graph workers and caller-owned specialist snapshots. See
+[graph orchestration contracts, limits and offline scenarios](../../docs/GRAPH_ORCHESTRATION.md).
+It does not change the HTTP coordinator or database.
+
 ## Files and authority
 
 | Area | Responsibility |
