@@ -480,6 +480,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   width: 100%;
   max-width: 760px;
 }
+.message-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.message-copy-error { color: var(--color-danger); font-size: 13px; }
 
 .composer-zone {
   flex: 0 0 auto;
