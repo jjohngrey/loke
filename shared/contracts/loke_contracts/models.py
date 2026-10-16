@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -11,12 +11,14 @@ class Contract(BaseModel):
 class ChatScope(Contract):
     chat_id: str = Field(default="default", min_length=1, max_length=100)
     project_id: str | None = Field(default=None, max_length=100)
-    folder_path: list[str] = Field(default_factory=list, max_length=8)
-    concept_tags: list[str] = Field(default_factory=list, max_length=24)
-    node_tags: list[str] = Field(default_factory=list, max_length=24)
+    folder_path: list[Annotated[str, Field(min_length=1, max_length=100)]] = Field(default_factory=list, max_length=8)
+    concept_tags: list[Annotated[str, Field(min_length=1, max_length=200)]] = Field(default_factory=list, max_length=24)
+    node_tags: list[Annotated[str, Field(min_length=1, max_length=200)]] = Field(default_factory=list, max_length=24)
 
 
 class MemoryExcerpt(Contract):
+    role: Literal["user", "assistant"] | None = None
+    action_status: Literal["started", "succeeded", "failed", "cancelled", "committed"] | None = None
     record_id: str
     agent_id: str | None = None
     chat_id: str
@@ -32,6 +34,7 @@ class AgentMatch(Contract):
     score: int
     record_ids: list[str]
     reasons: list[str]
+    candidate_scan_truncated: bool = False
 
 
 class MemoryContext(Contract):
@@ -41,9 +44,16 @@ class MemoryContext(Contract):
     summaries: list[MemoryExcerpt] = Field(default_factory=list)
     logs: list[MemoryExcerpt] = Field(default_factory=list)
     truncated: bool = False
+    maintenance_saturated: bool = False
 
 
-class GoalInput(Contract):
+class WriteRequest(Contract):
+    generation_id: str | None = Field(default=None, min_length=1, max_length=100)
+    expected_state_revision: int | None = Field(default=None, ge=0)
+    expected_plan_revision: int | None = Field(default=None, ge=0)
+
+
+class GoalInput(WriteRequest):
     scope: ChatScope = Field(default_factory=ChatScope)
     request_id: str = Field(min_length=1, max_length=100)
     goal: str = Field(min_length=3, max_length=500)
@@ -52,25 +62,27 @@ class GoalInput(Contract):
     study_minutes: int = Field(default=10, ge=3, le=30)
 
 
-class LearningInput(Contract):
+class LearningInput(WriteRequest):
     scope: ChatScope = Field(default_factory=ChatScope)
     request_id: str = Field(min_length=1, max_length=100)
     text: str = Field(min_length=1, max_length=15000)
     mode: Literal["text", "voice", "attachment"] = "text"
 
 
-class AnswerInput(Contract):
+class AnswerInput(WriteRequest):
     scope: ChatScope = Field(default_factory=ChatScope)
     request_id: str = Field(min_length=1, max_length=100)
     card_id: str
     answer: str = Field(min_length=1, max_length=200)
 
 
-class ReminderSettings(Contract):
+class ReminderSettings(WriteRequest):
+    request_id: str | None = Field(default=None, min_length=1, max_length=100)
     enabled: bool
 
 
-class ClockAdvance(Contract):
+class ClockAdvance(WriteRequest):
+    request_id: str | None = Field(default=None, min_length=1, max_length=100)
     hours: int = Field(default=24, ge=1, le=168)
 
 
@@ -110,6 +122,8 @@ class ConceptState(Contract):
 
 
 class EvidenceEvent(Contract):
+    timestamp_provenance: Literal["wall_clock", "legacy_unverified"] = "wall_clock"
+    projection_after: ConceptState | None = None
     id: str
     card_id: str | None = None
     expected_answer: str | None = None
@@ -173,6 +187,7 @@ class TopicProposal(Contract):
 
 
 class ContextBundle(Contract):
+    context_truncated: bool = False
     memory: MemoryContext | None = None
     generation_id: str = ""
     graph_version: str | None = None

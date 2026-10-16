@@ -1,35 +1,52 @@
 """The intelligence layer depends on this boundary, not SQL implementation details."""
 
-from collections.abc import Callable
 from typing import Any, Protocol
 
-from .memory import ChatScope, CommitGuard, JobLease, MemoryContext
+from .memory import (
+    ChatScope,
+    CommitGuard,
+    JobLease,
+    LegacySnapshotTransform,
+    MemoryContext,
+    MemorySnapshot,
+    MemoryTurn,
+)
 from .models import LearningView
 from .source import SourceDocument, SourceGraph
 
 
 class MemoryPort(Protocol):
-    """Current single-worker snapshot boundary; see shared/fixtures/README.md."""
+    """PostgreSQL command boundary with an explicitly typed legacy snapshot adapter."""
 
     def learner_ids(self) -> list[str]: ...
-    def snapshot(self, learner_id: str) -> dict[str, Any]: ...
+    def snapshot(self, learner_id: str) -> MemorySnapshot: ...
     def mutate(
         self,
         learner_id: str,
         request_id: str,
         fingerprint: str,
         expected_revision: int | None,
-        transform: Callable[[dict[str, Any]], None],
-        *, guard: CommitGuard | None = None, operation: str = "legacy",
+        transform: LegacySnapshotTransform,
+        *, guard: CommitGuard | None = None, operation: str = "legacy", turn: MemoryTurn | None = None, legacy_fingerprint: str | None = None,
     ) -> dict[str, Any]: ...
     def lookup_outcome(self, learner_id: str, request_id: str, fingerprint: str,
-                       generation_id: str, operation: str = "legacy") -> dict[str, Any] | None: ...
+                       generation_id: str, operation: str = "legacy", legacy_fingerprint: str | None = None) -> dict[str, Any] | None: ...
     def memory_context(self, learner_id: str, generation_id: str, query: str,
                        scope: ChatScope) -> MemoryContext: ...
     def search_agents(self, learner_id: str, generation_id: str, query: str,
                       scope: ChatScope, limit: int = 3) -> list: ...
     def save_document_graph(self, learner_id: str, guard: CommitGuard,
                             document: SourceDocument, graph: SourceGraph) -> str: ...
+    def append_agent_log(self, learner_id: str, generation_id: str, root_id: str, action_id: str,
+                         scope: ChatScope, text: str, reference_ids: list[str], action: dict) -> str: ...
+    def ensure_category_agent(self, learner_id: str, generation_id: str, category: str) -> str: ...
+    def original_record(self, learner_id: str, generation_id: str, key: str) -> dict | None: ...
+    def memory_node(self, learner_id: str, generation_id: str, key: str,
+                    after_sequence: int = 0, limit: int = 25, expected_tree_version: int | None = None) -> dict | None: ...
+    def read_object(self, learner_id: str, key: str) -> dict | None: ...
+    def add_correction(self, learner_id: str, guard: CommitGuard, correction_id: str,
+                       event_id: str, correction: dict) -> None: ...
+    def rebuild_projection(self, learner_id: str, guard: CommitGuard, reducer) -> MemorySnapshot: ...
     def enqueue_job(self, learner_id: str, generation_id: str, key: str, kind: str,
                     payload: dict, due_at=None) -> None: ...
     def claim_jobs(self, owner: str, kinds: list[str], limit: int = 10,

@@ -117,3 +117,26 @@ def choose_plan(snapshot: dict) -> list[dict]:
         if len(result) == 3:
             break
     return result
+
+
+def replay_projection(events: list[dict], corrections: list[dict]) -> dict:
+    """Reproduce explicit committed projections; never invent missing legacy deadlines."""
+    from loke_contracts.models import ConceptState
+    overrides = {c["event_id"]: c["correction"] for c in corrections}
+    states = {}
+    for event in events:
+        correction = overrides.get(event["id"], {})
+        assessment = correction.get("assessment", event.get("assessment"))
+        if event.get("kind") != "quiz_answer" or assessment in {"not_assessed", "ungraded"}:
+            continue
+        projection = correction.get("projection_after", event.get("projection_after"))
+        if not projection or (assessment != event.get("assessment") and "projection_after" not in correction):
+            raise ValueError("Exact replay needs an explicit projection for legacy/corrected evidence.")
+        state = ConceptState.model_validate(projection)
+        if state.concept_id != event["concept_id"] or event["id"] not in state.evidence_ids:
+            raise ValueError("Projection must refer to its originating concept and evidence.")
+        value = state.model_dump(exclude_none=True)
+        if state.next_review_at is not None:
+            value["next_review_at"] = state.next_review_at.isoformat()
+        states[state.concept_id] = value
+    return states

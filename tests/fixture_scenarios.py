@@ -59,6 +59,7 @@ def scenarios(memory: MemoryPort) -> dict:
             "loke_intelligence.policy.now",
             side_effect=lambda s: BASE_TIME + timedelta(hours=s.get("demo_clock_hours", 0)),
         ),
+        patch("loke_intelligence.coordinator.observed_now", return_value=BASE_TIME),
         patch.dict("os.environ", {"DEMO_CLOCK_ENABLED": "true"}),
     ):
         capture("empty", service.view("fixture-learner"))

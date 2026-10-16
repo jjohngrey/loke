@@ -3,12 +3,14 @@
 import json
 from pathlib import Path
 
-from loke_contracts.memory import CommitGuard, JobLease
+from loke_contracts.memory import CommitGuard, JobLease, MemoryTurn, OperationalAction
 from loke_contracts.models import ChatScope, ContractBundle, MemoryContext
 from loke_contracts.source import SourceDocument, SourceGraph
 
 
 class PublishedContracts(ContractBundle):
+    operational_action: OperationalAction
+    memory_turn: MemoryTurn
     commit_guard: CommitGuard
     job_lease: JobLease
     chat_scope: ChatScope

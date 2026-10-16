@@ -49,7 +49,7 @@ def test_summary_threshold_cascade_and_original_records(pg_url):
     with store.engine.connect() as conn:
         rows = list(conn.execute(select(db.summaries)).mappings())
         assert any(r["tier"] == 1 for r in rows)
-        assert len(list(conn.execute(select(db.messages)))) == 28
+        assert len(list(conn.execute(select(db.messages).where(db.messages.c.chat_id == "chat-a")))) == 28
     summary = next(r for r in rows if r["tier"] == 0)
     assert summary["data"]["generator"] == "extractive-v1"
     assert summary["data"]["entries"][0]["observed_at"] in summary["data"]["text"]
@@ -115,7 +115,7 @@ def test_tree_balances_and_retains_every_log_on_restart(pg_url):
     for index in range(80):
         turn(store, generation, root, index)
         store.maintain_memory("one", generation)
-    tree_invariants(store, 80, 3, 3)
+    tree_invariants(store, 81, 3, 3)
     restarted = Store(pg_url)
     assert restarted.search_agents("one", generation, "sodium", ChatScope())
     assert store.snapshot("one")["state_revision"] == 1
@@ -131,14 +131,14 @@ def test_oversized_record_and_competing_maintenance_are_safe(pg_url):
     store.limits = other.limits = MemoryLimits(leaf_records=2, leaf_tokens=100)
     with ThreadPoolExecutor(2) as pool:
         list(pool.map(lambda s: s.maintain_memory("one", generation), [store, other]))
-    tree_invariants(store, 2, 8, 6)
+    tree_invariants(store, 3, 8, 6)
     store.delete_learner("one")
     goal(store, request="new")
     with pytest.raises(ConflictError):
         store.maintain_memory("one", generation)
     with store.engine.connect() as conn:
         for table in (db.nodes, db.assignments, db.logs, db.messages, db.summaries):
-            assert conn.execute(select(table)).first() is None
+            assert conn.execute(select(table).where(table.c.generation_id == generation)).first() is None
     other.engine.dispose()
 
 
@@ -152,3 +152,32 @@ def test_multilingual_memory_budget_and_idempotent_action(pg_url):
     context = store.memory_context("one", generation, "记忆", ChatScope(chat_id="chat-a"))
     assert context.truncated
     assert estimate(context.model_dump_json()) <= store.limits.context_tokens
+
+
+def test_depth_saturation_is_visible_and_keeps_overflow_records(pg_url):
+    store = Store(pg_url)
+    generation, root = setup(store)
+    store.limits = MemoryLimits(leaf_records=2, fanout=2, max_depth=1)
+    for index in range(20):
+        turn(store, generation, root, index)
+        store.maintain_memory("one", generation)
+    tree_invariants(store, 21, 2, 1)
+    context = store.memory_context("one", generation, "sodium", ChatScope(chat_id="chat-a"))
+    assert context.maintenance_saturated
+
+
+def test_tree_navigation_is_scoped_and_paginates_original_records(pg_url):
+    store = Store(pg_url)
+    generation, root = setup(store)
+    for index in range(4):
+        turn(store, generation, root, index)
+    page = store.memory_node("one", generation, root, limit=2)
+    assert len(page["record_ids"]) == 2 and page["truncated"]
+    rest = store.memory_node("one", generation, root, after_sequence=page["next_sequence"], limit=100)
+    assert not set(rest["record_ids"]) & set(page["record_ids"])
+    assert len(rest["record_ids"]) == 3
+    assert store.original_record("one", generation, rest["record_ids"][0])
+    assert store.memory_node("two", store.snapshot("two")["generation_id"], root) is None
+    turn(store, generation, root, 5)
+    with pytest.raises(ConflictError, match="tree changed"):
+        store.memory_node("one", generation, root, expected_tree_version=page["tree_version"])

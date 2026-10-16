@@ -6,7 +6,7 @@
   "storage_consent": true,
   "reminders_enabled": true,
   "agent_id": "ba78f2f8-5be0-5f3a-bedf-fd857d16a140",
-  "state_revision": 4,
+  "state_revision": 3,
   "plan_revision": 3,
   "model_mode": "demo",
   "demo_clock_hours": 24,
@@ -141,6 +141,15 @@
   ],
   "events": [
     {
+      "timestamp_provenance": "wall_clock",
+      "projection_after": {
+        "concept_id": "action_potential_phases",
+        "status": "needs_practice",
+        "evidence_ids": [
+          "d86c4713-01fb-55a8-94af-e3df14e81f98"
+        ],
+        "next_review_at": "2026-10-18T01:00:00Z"
+      },
       "id": "d86c4713-01fb-55a8-94af-e3df14e81f98",
       "card_id": "ap-depolarization",
       "expected_answer": "b",

@@ -5,10 +5,11 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from loke_contracts.memory import ConflictError, MemoryContext
 from loke_contracts.ports import MemoryPort
 
 
-class FakeConflictError(ValueError):
+class FakeConflictError(ConflictError):
     """The baseline port exposes conflict semantics, not a concrete SQL exception."""
 
 
@@ -16,6 +17,7 @@ class FakeMemory(MemoryPort):
     def __init__(self):
         self.generations = {}
         self.records: dict[str, dict[str, Any]] = {}
+        self.actions = []
         self.outcomes: dict[tuple[str, str], tuple[str, dict[str, Any]]] = {}
 
     def learner_ids(self) -> list[str]:
@@ -58,8 +60,12 @@ class FakeMemory(MemoryPort):
         fingerprint: str,
         expected_revision: int | None,
         transform: Callable[[dict[str, Any]], None],
+        *, guard=None, operation="legacy", turn=None, legacy_fingerprint=None,
     ) -> dict[str, Any]:
-        key = (learner_id, request_id)
+        current = self.snapshot(learner_id)
+        if guard and current["generation_id"] != guard.generation_id:
+            raise FakeConflictError("Learning history was reset.")
+        key = (learner_id, current["generation_id"], operation, request_id)
         if key in self.outcomes:
             prior_fingerprint, outcome = self.outcomes[key]
             if prior_fingerprint != fingerprint:
@@ -68,14 +74,36 @@ class FakeMemory(MemoryPort):
         current = self.snapshot(learner_id)
         if expected_revision is not None and current["state_revision"] != expected_revision:
             raise FakeConflictError("Learning state changed. Retry with a new request ID.")
+        if guard:
+            for name in ("state_revision", "plan_revision", "graph_version"):
+                expected = getattr(guard, name)
+                if (expected is not None or name == "graph_version") and current.get(name) != expected:
+                    raise FakeConflictError("Learning state changed.")
         # Transform an isolated copy: exceptions publish neither changes nor a dedupe outcome.
         before = deepcopy(current)
         transform(current)
         current["plan_revision"] = before["plan_revision"] + int(current["plan"] != before["plan"] or current["active_card_id"] != before["active_card_id"])
-        current["state_revision"] += int(current != before)
+        current["state_revision"] += int(current != before or (turn is not None and current["storage_consent"]))
         self.records[learner_id] = deepcopy(current)
         self.outcomes[key] = (fingerprint, deepcopy(current))
         return deepcopy(current)
+
+    def lookup_outcome(self, learner_id, request_id, fingerprint, generation_id, operation="legacy", legacy_fingerprint=None):
+        if self.snapshot(learner_id)["generation_id"] != generation_id:
+            raise FakeConflictError("Learning history was reset.")
+        result = self.outcomes.get((learner_id, generation_id, operation, request_id))
+        if result:
+            if result[0] != fingerprint:
+                raise FakeConflictError("This request ID was already used for different content.")
+            return deepcopy(result[1])
+        return None
+
+    def memory_context(self, learner_id, generation_id, query, scope):
+        return MemoryContext(generation_id=generation_id)
+
+    def append_agent_log(self, *args, **kwargs):
+        self.actions.append((args, kwargs))
+        return "fake-action"
 
     def read_events(self, learner_id: str) -> list[dict[str, Any]]:
         return self.snapshot(learner_id)["events"]

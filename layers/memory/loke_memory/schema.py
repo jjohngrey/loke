@@ -1,4 +1,4 @@
-"""Initial cross-database schema. C owns migrations after the scaffold."""
+"""Historical bootstrap schema for migration fixtures only. Runtime uses tables.py."""
 
 from sqlalchemy import JSON, Column, Integer, MetaData, String, Table
 

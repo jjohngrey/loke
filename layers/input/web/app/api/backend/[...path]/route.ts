@@ -24,6 +24,7 @@ async function proxy(
     return Response.json({ detail: "Unsupported origin." }, { status: 403 });
   const { path } = await context.params;
   const route = path.join("/");
+  const query = new URL(req.url).search;
   if (!allowed.has(route))
     return Response.json({ detail: "Unknown route." }, { status: 404 });
   const headers = new Headers({
@@ -35,7 +36,7 @@ async function proxy(
     headers.set("audio-consent", "true");
   try {
     const upstream = await fetch(
-      `${process.env.BACKEND_URL || "http://127.0.0.1:8000"}/api/${route}`,
+      `${process.env.BACKEND_URL || "http://127.0.0.1:8000"}/api/${route}${query}`,
       {
         method: req.method,
         headers,

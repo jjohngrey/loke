@@ -28,6 +28,11 @@
           },
           "title": "Reasons",
           "type": "array"
+        },
+        "candidate_scan_truncated": {
+          "default": false,
+          "title": "Candidate Scan Truncated",
+          "type": "boolean"
         }
       },
       "required": [
@@ -43,6 +48,46 @@
     "AnswerInput": {
       "additionalProperties": false,
       "properties": {
+        "generation_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation Id"
+        },
+        "expected_state_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected State Revision"
+        },
+        "expected_plan_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Plan Revision"
+        },
         "scope": {
           "$ref": "#/$defs/ChatScope"
         },
@@ -110,6 +155,8 @@
         },
         "folder_path": {
           "items": {
+            "maxLength": 100,
+            "minLength": 1,
             "type": "string"
           },
           "maxItems": 8,
@@ -118,6 +165,8 @@
         },
         "concept_tags": {
           "items": {
+            "maxLength": 200,
+            "minLength": 1,
             "type": "string"
           },
           "maxItems": 24,
@@ -126,6 +175,8 @@
         },
         "node_tags": {
           "items": {
+            "maxLength": 200,
+            "minLength": 1,
             "type": "string"
           },
           "maxItems": 24,
@@ -139,6 +190,60 @@
     "ClockAdvance": {
       "additionalProperties": false,
       "properties": {
+        "generation_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation Id"
+        },
+        "expected_state_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected State Revision"
+        },
+        "expected_plan_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Plan Revision"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Id"
+        },
         "hours": {
           "default": 24,
           "maximum": 168,
@@ -291,6 +396,11 @@
     "ContextBundle": {
       "additionalProperties": false,
       "properties": {
+        "context_truncated": {
+          "default": false,
+          "title": "Context Truncated",
+          "type": "boolean"
+        },
         "memory": {
           "anyOf": [
             {
@@ -509,6 +619,26 @@
     "EvidenceEvent": {
       "additionalProperties": false,
       "properties": {
+        "timestamp_provenance": {
+          "default": "wall_clock",
+          "enum": [
+            "wall_clock",
+            "legacy_unverified"
+          ],
+          "title": "Timestamp Provenance",
+          "type": "string"
+        },
+        "projection_after": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConceptState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "id": {
           "title": "Id",
           "type": "string"
@@ -622,6 +752,46 @@
     "GoalInput": {
       "additionalProperties": false,
       "properties": {
+        "generation_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation Id"
+        },
+        "expected_state_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected State Revision"
+        },
+        "expected_plan_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Plan Revision"
+        },
         "scope": {
           "$ref": "#/$defs/ChatScope"
         },
@@ -716,6 +886,46 @@
     "LearningInput": {
       "additionalProperties": false,
       "properties": {
+        "generation_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation Id"
+        },
+        "expected_state_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected State Revision"
+        },
+        "expected_plan_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Plan Revision"
+        },
         "scope": {
           "$ref": "#/$defs/ChatScope"
         },
@@ -930,6 +1140,11 @@
           "default": false,
           "title": "Truncated",
           "type": "boolean"
+        },
+        "maintenance_saturated": {
+          "default": false,
+          "title": "Maintenance Saturated",
+          "type": "boolean"
         }
       },
       "required": [
@@ -941,6 +1156,41 @@
     "MemoryExcerpt": {
       "additionalProperties": false,
       "properties": {
+        "role": {
+          "anyOf": [
+            {
+              "enum": [
+                "user",
+                "assistant"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
+        "action_status": {
+          "anyOf": [
+            {
+              "enum": [
+                "started",
+                "succeeded",
+                "failed",
+                "cancelled",
+                "committed"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Action Status"
+        },
         "record_id": {
           "title": "Record Id",
           "type": "string"
@@ -995,6 +1245,39 @@
         "observed_at"
       ],
       "title": "MemoryExcerpt",
+      "type": "object"
+    },
+    "MemoryTurn": {
+      "additionalProperties": false,
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/ChatScope"
+        },
+        "user_text": {
+          "maxLength": 15000,
+          "title": "User Text",
+          "type": "string"
+        },
+        "operation": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Operation",
+          "type": "string"
+        },
+        "matched_agent_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 5,
+          "title": "Matched Agent Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "user_text",
+        "operation"
+      ],
+      "title": "MemoryTurn",
       "type": "object"
     },
     "NextActivity": {
@@ -1075,6 +1358,92 @@
       "title": "Notification",
       "type": "object"
     },
+    "OperationalAction": {
+      "additionalProperties": false,
+      "properties": {
+        "operation": {
+          "default": "action",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Operation",
+          "type": "string"
+        },
+        "status": {
+          "default": "committed",
+          "enum": [
+            "started",
+            "succeeded",
+            "failed",
+            "cancelled",
+            "committed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "tool_name": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Name"
+        },
+        "tool_version": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Version"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At"
+        },
+        "ended_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ended At"
+        },
+        "matched_agent_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 5,
+          "title": "Matched Agent Ids",
+          "type": "array"
+        }
+      },
+      "title": "OperationalAction",
+      "type": "object"
+    },
     "QuizCard": {
       "additionalProperties": false,
       "properties": {
@@ -1118,6 +1487,60 @@
     "ReminderSettings": {
       "additionalProperties": false,
       "properties": {
+        "generation_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation Id"
+        },
+        "expected_state_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected State Revision"
+        },
+        "expected_plan_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Plan Revision"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Id"
+        },
         "enabled": {
           "title": "Enabled",
           "type": "boolean"
@@ -1542,6 +1965,12 @@
     "error": {
       "$ref": "#/$defs/ApiError"
     },
+    "operational_action": {
+      "$ref": "#/$defs/OperationalAction"
+    },
+    "memory_turn": {
+      "$ref": "#/$defs/MemoryTurn"
+    },
     "commit_guard": {
       "$ref": "#/$defs/CommitGuard"
     },
@@ -1572,6 +2001,8 @@
     "proposal",
     "transcription",
     "error",
+    "operational_action",
+    "memory_turn",
     "commit_guard",
     "job_lease",
     "chat_scope",

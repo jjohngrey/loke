@@ -1,4 +1,5 @@
 {
+  "context_truncated": false,
   "memory": null,
   "generation_id": "",
   "graph_version": null,
@@ -88,6 +89,8 @@
   "states": [],
   "events": [
     {
+      "timestamp_provenance": "wall_clock",
+      "projection_after": null,
       "id": "19298b37-a90a-5828-b785-2297fb0a535b",
       "card_id": null,
       "expected_answer": null,

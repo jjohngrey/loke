@@ -147,6 +147,15 @@
   ],
   "events": [
     {
+      "timestamp_provenance": "wall_clock",
+      "projection_after": {
+        "concept_id": "action_potential_phases",
+        "status": "needs_practice",
+        "evidence_ids": [
+          "64732f7a-e3d3-5b96-930e-50bb7767e022"
+        ],
+        "next_review_at": "2026-10-18T01:00:00Z"
+      },
       "id": "64732f7a-e3d3-5b96-930e-50bb7767e022",
       "card_id": "ap-depolarization",
       "expected_answer": "b",
@@ -160,6 +169,15 @@
       "source": "quiz"
     },
     {
+      "timestamp_provenance": "wall_clock",
+      "projection_after": {
+        "concept_id": "resting_potential",
+        "status": "recent_unassisted_correct",
+        "evidence_ids": [
+          "4259b90d-59aa-5bb2-bf81-098cccb919c3"
+        ],
+        "next_review_at": "2026-10-20T01:00:00Z"
+      },
       "id": "4259b90d-59aa-5bb2-bf81-098cccb919c3",
       "card_id": "resting-permeability",
       "expected_answer": "k+",
@@ -173,6 +191,15 @@
       "source": "quiz"
     },
     {
+      "timestamp_provenance": "wall_clock",
+      "projection_after": {
+        "concept_id": "action_potential_phases",
+        "status": "needs_practice",
+        "evidence_ids": [
+          "26071fd4-898a-59f2-858e-24c21b01b0ab"
+        ],
+        "next_review_at": "2026-10-18T01:00:00Z"
+      },
       "id": "26071fd4-898a-59f2-858e-24c21b01b0ab",
       "card_id": "ap-repolarization",
       "expected_answer": "a",
