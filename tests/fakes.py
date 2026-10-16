@@ -65,8 +65,10 @@ class FakeMemory(MemoryPort):
         if expected_revision is not None and current["state_revision"] != expected_revision:
             raise FakeConflictError("Learning state changed. Retry with a new request ID.")
         # Transform an isolated copy: exceptions publish neither changes nor a dedupe outcome.
+        before = deepcopy(current)
         transform(current)
-        current["state_revision"] += 1
+        current["plan_revision"] = before["plan_revision"] + int(current["plan"] != before["plan"] or current["active_card_id"] != before["active_card_id"])
+        current["state_revision"] += int(current != before)
         self.records[learner_id] = deepcopy(current)
         self.outcomes[key] = (fingerprint, deepcopy(current))
         return deepcopy(current)

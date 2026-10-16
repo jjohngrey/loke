@@ -2,12 +2,12 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import MetaData, Table, insert, inspect, select, text
+from sqlalchemy import MetaData, Table, delete, insert, inspect, select, text
 
 from . import tables as db
 from .retrieval import tokens
 
-VERSION = 1
+VERSION = 2
 
 
 def migrate(engine):
@@ -22,8 +22,23 @@ def migrate(engine):
         if current == VERSION:
             return
         db.metadata.create_all(conn)
+        if current == 1:
+            conn.execute(text("ALTER TABLE memory_corrections DROP CONSTRAINT IF EXISTS memory_corrections_learner_id_event_id_fkey"))
+            conn.execute(text("ALTER TABLE memory_corrections ADD CONSTRAINT memory_corrections_learner_id_event_id_fkey FOREIGN KEY (learner_id, event_id) REFERENCES memory_events (learner_id, key) ON DELETE CASCADE"))
         if "learners" in inspect(conn).get_table_names():
             _legacy(conn)
+        from loke_contracts.catalog import CONCEPTS
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        for concept in CONCEPTS:
+            conn.execute(pg_insert(db.reviewed_concepts).values(id=concept["id"], data=concept).on_conflict_do_nothing())
+            for prerequisite in concept["prerequisites"]:
+                conn.execute(pg_insert(db.reviewed_edges).values(
+                    id=f"prerequisite:{prerequisite}:{concept['id']}", from_id=prerequisite,
+                    to_id=concept["id"], kind="prerequisite_of", version="neuro-v1").on_conflict_do_nothing())
+        conn.execute(pg_insert(db.reviewed_edges).values(id="related:ionic:selective",
+            from_id="ionic_gradients", to_id="selective_permeability", kind="related_to",
+            version="neuro-v1").on_conflict_do_nothing())
+        conn.execute(delete(db.versions))
         conn.execute(insert(db.versions).values(version=VERSION))
 
 

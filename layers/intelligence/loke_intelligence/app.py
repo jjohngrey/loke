@@ -28,7 +28,7 @@ load_dotenv(ROOT / ".env")
 
 
 def create_app(database_url: str | None = None, learner_id: str | None = None):
-    store = Store(database_url or os.getenv("DATABASE_URL", f"sqlite:///{ROOT / 'work/loke.db'}"))
+    store = Store(database_url or os.getenv("DATABASE_URL", "postgresql+psycopg://loke:loke@127.0.0.1:5432/loke"))
     mode = os.getenv("MODEL_MODE", "demo")
     if mode not in {"demo", "live"}:
         raise ValueError("MODEL_MODE must be demo or live.")
