@@ -12,11 +12,11 @@ HEADERS = {"x-loke-session": "local-demo-change-me"}
 
 
 @pytest.fixture
-def client(tmp_path, monkeypatch):
+def client(pg_url, monkeypatch):
     monkeypatch.setenv("MODEL_MODE", "demo")
     monkeypatch.setenv("SESSION_TOKEN", HEADERS["x-loke-session"])
     monkeypatch.setenv("DEMO_CLOCK_ENABLED", "true")
-    app = create_app(f"sqlite:///{tmp_path / 'learning.db'}")
+    app = create_app(pg_url)
     with TestClient(app) as client:
         yield client
 
@@ -121,8 +121,8 @@ def test_attachment_is_report_not_mastery_and_delete_clears_it(client):
     assert not deleted["storage_consent"]
 
 
-def test_restart_and_learner_isolation(tmp_path):
-    url = f"sqlite:///{tmp_path / 'restart.db'}"
+def test_restart_and_learner_isolation(pg_url):
+    url = pg_url
     service = Coordinator(Store(url))
     first = service.goal(
         "one",
@@ -141,8 +141,8 @@ def test_restart_and_learner_isolation(tmp_path):
     assert restarted.view("two").sources == []
 
 
-def test_slow_model_proposal_cannot_overwrite_newer_goal(tmp_path, monkeypatch):
-    service = Coordinator(Store(f"sqlite:///{tmp_path / 'stale.db'}"), "live")
+def test_slow_model_proposal_cannot_overwrite_newer_goal(pg_url, monkeypatch):
+    service = Coordinator(Store(pg_url), "live")
     service.goal(
         "one",
         GoalInput(request_id="goal", goal="Understand neural signaling", storage_consent=True),
@@ -222,8 +222,8 @@ def test_assisted_correct_does_not_extend_review(client):
     )
 
 
-def test_deleted_history_cannot_be_recreated_by_an_old_live_proposal(tmp_path, monkeypatch):
-    service = Coordinator(Store(f"sqlite:///{tmp_path / 'delete-race.db'}"), "live")
+def test_deleted_history_cannot_be_recreated_by_an_old_live_proposal(pg_url, monkeypatch):
+    service = Coordinator(Store(pg_url), "live")
     service.goal(
         "one",
         GoalInput(request_id="goal", goal="Understand neural signaling", storage_consent=True),

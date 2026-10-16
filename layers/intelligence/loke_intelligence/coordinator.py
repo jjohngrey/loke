@@ -1,21 +1,28 @@
 import hashlib
+import json
 import os
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from loke_contracts.catalog import CARDS, CONCEPTS
+from loke_contracts.memory import CommitGuard, ConflictError, MemoryTurn
 from loke_contracts.models import (
     AnswerInput,
+    ChatScope,
+    ClockAdvance,
     ContextBundle,
     EvidenceEvent,
     GoalInput,
     LearningInput,
     LearningView,
+    MemoryContext,
     QuizCard,
+    ReminderSettings,
 )
 from loke_contracts.ports import MemoryPort
 
 from . import policy
+from .memory_context import bounded_context
 from .openrouter import propose
 
 
@@ -23,10 +30,48 @@ def fingerprint(payload) -> str:
     return hashlib.sha256(payload.model_dump_json().encode()).hexdigest()
 
 
+def legacy_fingerprint(payload):
+    """Only used for the bounded retry window when upgrading original scaffold outcomes."""
+    if payload.scope != ChatScope() or any(getattr(payload, name, None) is not None
+                                          for name in ("generation_id", "expected_state_revision", "expected_plan_revision")):
+        return None
+    value = payload.model_dump(mode="json", exclude={"scope", "generation_id", "expected_state_revision", "expected_plan_revision"})
+    return hashlib.sha256(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
+
+
+def observed_now():
+    """Observation timestamps never use the demo review clock."""
+    return datetime.now(UTC)
+
+
 class Coordinator:
     def __init__(self, memory: MemoryPort, mode: str = "demo"):
         self.memory = memory
         self.mode = mode
+
+    def _memory(self, learner_id, snapshot, query, scope):
+        if not snapshot["storage_consent"]:
+            return MemoryContext(generation_id=snapshot["generation_id"])
+        return self.memory.memory_context(learner_id, snapshot["generation_id"], query, scope)
+
+    @staticmethod
+    def _guard(snapshot, payload=None):
+        guard = CommitGuard(generation_id=getattr(payload, "generation_id", None) or snapshot["generation_id"],
+            state_revision=snapshot["state_revision"] if getattr(payload, "expected_state_revision", None) is None else payload.expected_state_revision,
+            plan_revision=snapshot["plan_revision"] if getattr(payload, "expected_plan_revision", None) is None else payload.expected_plan_revision,
+            graph_version=snapshot.get("graph_version"))
+        if guard.generation_id != snapshot["generation_id"]:
+            raise ConflictError("Learning history was reset. Reload before writing.")
+        for name in ("state_revision", "plan_revision"):
+            if getattr(guard, name) != snapshot[name]:
+                raise ConflictError("Learning state changed. Reload before writing.")
+        return guard
+
+    @staticmethod
+    def _turn(payload, operation, context):
+        text = getattr(payload, "text", None) or getattr(payload, "goal", None) or getattr(payload, "answer", "")
+        return MemoryTurn(scope=payload.scope, user_text=text, operation=operation,
+                          matched_agent_ids=[m.agent_id for m in context.matches])
 
     def _view(self, learner_id: str, snapshot: dict) -> LearningView:
         card_id = snapshot.get("active_card_id")
@@ -38,6 +83,8 @@ class Coordinator:
         )
         return LearningView(
             learner_id=learner_id,
+            generation_id=snapshot["generation_id"],
+            graph_version=snapshot.get("graph_version"),
             goal=snapshot["goal"],
             storage_consent=snapshot["storage_consent"],
             reminders_enabled=snapshot["reminders_enabled"],
@@ -63,11 +110,14 @@ class Coordinator:
         return self._view(learner_id, self.memory.snapshot(learner_id))
 
     def _replan(self, snapshot: dict):
-        snapshot["plan"] = policy.choose_plan(snapshot)
-        snapshot["plan_revision"] += 1
-        if snapshot["plan"]:
-            card = policy.card_for(snapshot["plan"][0]["concept_id"], snapshot["events"])
-            snapshot["active_card_id"] = card["id"]
+        plan = policy.choose_plan(snapshot)
+        active = snapshot["active_card_id"]
+        if plan:
+            active = policy.card_for(plan[0]["concept_id"], snapshot["events"])["id"]
+        changed = plan != snapshot["plan"] or active != snapshot["active_card_id"]
+        snapshot["plan"] = plan
+        snapshot["active_card_id"] = active
+        snapshot["plan_revision"] += int(changed)
 
     def goal(self, learner_id: str, payload: GoalInput) -> LearningView:
         if not payload.storage_consent:
@@ -77,6 +127,16 @@ class Coordinator:
             for term in ["neuro", "neuron", "synap", "action potential", "signaling", "membrane"]
         ):
             raise ValueError("This scaffold supports neural signaling. Choose a neuroscience goal.")
+
+        base = self.memory.snapshot(learner_id)
+        if payload.generation_id is not None and payload.generation_id != base["generation_id"]:
+            raise ConflictError("Learning history was reset.")
+        cached = self.memory.lookup_outcome(learner_id, payload.request_id, fingerprint(payload),
+                                            base["generation_id"], operation="goal", legacy_fingerprint=legacy_fingerprint(payload))
+        if cached is not None:
+            return self._view(learner_id, cached)
+        guard = self._guard(base, payload)
+        context = self._memory(learner_id, base, payload.goal, payload.scope)
 
         def transform(s):
             s.update(
@@ -94,7 +154,8 @@ class Coordinator:
         return self._view(
             learner_id,
             self.memory.mutate(
-                learner_id, payload.request_id, fingerprint(payload), None, transform
+                learner_id, payload.request_id, fingerprint(payload), None, transform,
+                guard=guard, operation="goal", turn=self._turn(payload, "goal", context), legacy_fingerprint=legacy_fingerprint(payload)
             ),
         )
 
@@ -102,10 +163,21 @@ class Coordinator:
         snapshot = self.memory.snapshot(learner_id)
         if not snapshot["storage_consent"]:
             raise ValueError("Save a goal and consent before submitting study material.")
+        if payload.generation_id is not None and payload.generation_id != snapshot["generation_id"]:
+            raise ConflictError("Learning history was reset.")
+        cached = self.memory.lookup_outcome(learner_id, payload.request_id, fingerprint(payload),
+                                            snapshot["generation_id"], operation="input", legacy_fingerprint=legacy_fingerprint(payload))
+        if cached is not None:
+            return self._view(learner_id, cached)
+        guard = self._guard(snapshot, payload)
+        memory_context = self._memory(learner_id, snapshot, payload.text, payload.scope)
         concept_id = policy.match_concept(payload.text)
         explanation = "Saved as learner-reported activity. A short recall question will give us stronger evidence."
         if self.mode == "live":
             context = ContextBundle(
+                memory=memory_context,
+                generation_id=snapshot["generation_id"],
+                graph_version=snapshot.get("graph_version"),
                 learner_id=learner_id,
                 agent_id=snapshot["agent_id"],
                 goal=snapshot["goal"],
@@ -116,7 +188,26 @@ class Coordinator:
                 events=snapshot["events"][-10:],
                 sources=self.memory.retrieve_sources(learner_id, payload.text),
             )
-            proposal = await propose(payload.text, context)
+            context = bounded_context(context)
+            started_at = observed_now()
+            attempt_id = str(uuid4())
+            self.memory.append_agent_log(learner_id, snapshot["generation_id"], snapshot["agent_id"],
+                "proposal-started:" + attempt_id, payload.scope, "Started a text proposal.", [],
+                dict(operation="proposal", tool_name="openrouter", tool_version="topic-proposal-v1",
+                     status="started", started_at=started_at.isoformat()))
+            try:
+                proposal = await propose(payload.text, context)
+            except Exception:
+                # Preserve a bounded operational failure, never a provider payload or fake evidence.
+                self.memory.append_agent_log(learner_id, snapshot["generation_id"], snapshot["agent_id"],
+                    "proposal-failed:" + attempt_id, payload.scope, "Text proposal failed.", [],
+                    dict(operation="proposal", tool_name="openrouter", tool_version="topic-proposal-v1",
+                         status="failed", started_at=started_at.isoformat(), ended_at=observed_now().isoformat()))
+                raise
+            self.memory.append_agent_log(learner_id, snapshot["generation_id"], snapshot["agent_id"],
+                "proposal-result:" + attempt_id, payload.scope, proposal.model_dump_json(), [],
+                dict(operation="proposal", tool_name="openrouter", tool_version="topic-proposal-v1",
+                     status="succeeded", started_at=started_at.isoformat(), ended_at=observed_now().isoformat()))
             concept_id, explanation = proposal.concept_id, proposal.explanation
 
         def transform(s):
@@ -129,7 +220,7 @@ class Coordinator:
                     card_id=None,
                     kind="study_report",
                     text=payload.text,
-                    occurred_at=policy.now(s).isoformat(),
+                    occurred_at=observed_now().isoformat(),
                     assessment="not_assessed",
                     assistance="none",
                     source=payload.mode,
@@ -154,11 +245,22 @@ class Coordinator:
                 payload.request_id,
                 fingerprint(payload),
                 snapshot["state_revision"],
-                transform,
+                transform, guard=guard, operation="input",
+                turn=self._turn(payload, "input", memory_context), legacy_fingerprint=legacy_fingerprint(payload),
             ),
         )
 
     def answer(self, learner_id: str, payload: AnswerInput) -> LearningView:
+        base = self.memory.snapshot(learner_id)
+        if payload.generation_id is not None and payload.generation_id != base["generation_id"]:
+            raise ConflictError("Learning history was reset.")
+        cached = self.memory.lookup_outcome(learner_id, payload.request_id, fingerprint(payload),
+                                            base["generation_id"], operation="answer", legacy_fingerprint=legacy_fingerprint(payload))
+        if cached is not None:
+            return self._view(learner_id, cached)
+        guard = self._guard(base, payload)
+        context = self._memory(learner_id, base, payload.answer, payload.scope)
+
         def transform(s):
             if not s["storage_consent"]:
                 raise ValueError("Save a goal before answering.")
@@ -174,7 +276,7 @@ class Coordinator:
                 card_id=card["id"],
                 kind="quiz_answer",
                 text=payload.answer,
-                occurred_at=policy.now(s).isoformat(),
+                occurred_at=observed_now().isoformat(),
                 assessment=assessment,
                 expected_answer=card["answers"][0],
                 grader="choice-rule-v1",
@@ -202,6 +304,7 @@ class Coordinator:
                 evidence_ids=[event["id"]],
                 next_review_at=due,
             )
+            event["projection_after"] = dict(s["states"][concept_id])
             s["review_jobs"] = [j for j in s["review_jobs"] if j["concept_id"] != concept_id]
             s["review_jobs"].append(
                 dict(
@@ -226,71 +329,90 @@ class Coordinator:
         return self._view(
             learner_id,
             self.memory.mutate(
-                learner_id, payload.request_id, fingerprint(payload), None, transform
+                learner_id, payload.request_id, fingerprint(payload), None, transform,
+                guard=guard, operation="answer", turn=self._turn(payload, "answer", context), legacy_fingerprint=legacy_fingerprint(payload)
             ),
         )
 
-    def reminders(self, learner_id: str, enabled: bool) -> LearningView:
+    def reminders(self, learner_id: str, enabled: bool, payload=None) -> LearningView:
+        payload = payload or ReminderSettings(enabled=enabled)
+        base = self.memory.snapshot(learner_id)
+        if payload.generation_id is not None and payload.generation_id != base["generation_id"]:
+            raise ConflictError("Learning history was reset.")
+        if payload.request_id:
+            cached = self.memory.lookup_outcome(learner_id, payload.request_id, fingerprint(payload),
+                                                base["generation_id"], operation="reminders")
+            if cached is not None:
+                return self._view(learner_id, cached)
+        guard = self._guard(base, payload)
+
         def transform(s):
             if not s["storage_consent"]:
                 raise ValueError("Save a goal before enabling reminders.")
             s["reminders_enabled"] = enabled
 
-        result = self.memory.mutate(learner_id, str(uuid4()), str(enabled), None, transform)
+        result = self.memory.mutate(learner_id, payload.request_id or str(uuid4()), fingerprint(payload), None, transform,
+                                    guard=guard, operation="reminders")
         return self._view(learner_id, result)
 
-    def advance_clock(self, learner_id: str, hours: int) -> LearningView:
+    def advance_clock(self, learner_id: str, hours: int, payload=None) -> LearningView:
         if os.getenv("DEMO_CLOCK_ENABLED", "false").lower() != "true":
             raise ValueError("Demo clock is disabled.")
+        payload = payload or ClockAdvance(hours=hours)
+        base = self.memory.snapshot(learner_id)
+        if payload.generation_id is not None and payload.generation_id != base["generation_id"]:
+            raise ConflictError("Learning history was reset.")
+        if payload.request_id:
+            cached = self.memory.lookup_outcome(learner_id, payload.request_id, fingerprint(payload),
+                                                base["generation_id"], operation="clock")
+            if cached is not None:
+                return self._view(learner_id, cached)
+        guard = self._guard(base, payload)
 
         def transform(s):
             if not s["storage_consent"]:
                 raise ValueError("Save a goal before advancing the demo clock.")
             s["demo_clock_hours"] += hours
+            self._dispatch_due(s)
 
-        self.memory.mutate(learner_id, str(uuid4()), str(hours), None, transform)
-        self.tick(learner_id)
-        return self.view(learner_id)
+        result = self.memory.mutate(learner_id, payload.request_id or str(uuid4()), fingerprint(payload),
+                                   None, transform, guard=guard, operation="clock")
+        return self._view(learner_id, result)
 
-    def tick(self, learner_id: str):
-        snapshot = self.memory.snapshot(learner_id)
+    def _dispatch_due(self, snapshot, job_id=None):
         if not snapshot["storage_consent"] or not snapshot["reminders_enabled"]:
             return
-        due = [
-            j
-            for j in snapshot["review_jobs"]
-            if j["status"] == "pending"
-            and datetime.fromisoformat(j["due_at"]) <= policy.now(snapshot)
-        ]
+        now = policy.now(snapshot)
+        last = max(snapshot["notifications"], key=lambda n: n["created_at"], default=None)
+        if last and now - datetime.fromisoformat(last["created_at"]) < timedelta(hours=24):
+            return
+        due = sorted((j for j in snapshot["review_jobs"] if j["status"] == "pending"
+                      and datetime.fromisoformat(j["due_at"]) <= now
+                      and (job_id is None or j["id"] == job_id)), key=lambda j: (j["due_at"], j["id"]))
         if not due:
             return
-        last = snapshot["notifications"][-1] if snapshot["notifications"] else None
-        if last and policy.now(snapshot) - datetime.fromisoformat(last["created_at"]) < timedelta(
-            hours=24
-        ):
+        job = due[0]
+        state = snapshot["states"].get(job["concept_id"], {})
+        if job["reason_event_id"] not in state.get("evidence_ids", []):
+            job["status"] = "cancelled"
+            return
+        job["status"] = "notified"
+        label = next(c["label"] for c in CONCEPTS if c["id"] == job["concept_id"])
+        snapshot["notifications"].append(dict(id=f"notification:{job['id']}", kind="notification",
+            title=f"Review due: {label}", reason_event_id=job["reason_event_id"], created_at=now.isoformat()))
+        self._replan(snapshot)
+
+    def tick(self, learner_id: str):
+        base = self.memory.snapshot(learner_id)
+        due = sorted((j for j in base["review_jobs"] if j["status"] == "pending"
+                      and datetime.fromisoformat(j["due_at"]) <= policy.now(base)),
+                     key=lambda j: (j["due_at"], j["id"]))
+        if not base["storage_consent"] or not base["reminders_enabled"] or not due:
             return
         job = due[0]
-
-        def transform(s):
-            current = next((j for j in s["review_jobs"] if j["id"] == job["id"]), None)
-            if not current or current["status"] != "pending":
-                return
-            current["status"] = "notified"
-            label = next(c["label"] for c in CONCEPTS if c["id"] == job["concept_id"])
-            s["notifications"].append(
-                dict(
-                    id=f"notification:{job['id']}",
-                    kind="notification",
-                    title=f"Review due: {label}",
-                    reason_event_id=job["reason_event_id"],
-                    created_at=policy.now(s).isoformat(),
-                )
-            )
-            self._replan(s)
-
-        self.memory.mutate(
-            learner_id, f"dispatch:{job['id']}", job["id"], snapshot["state_revision"], transform
-        )
+        self.memory.mutate(learner_id, f"dispatch:{job['id']}", job["id"], None,
+            lambda s: self._dispatch_due(s, job["id"]),
+            guard=CommitGuard(generation_id=base["generation_id"]), operation="dispatch")
 
     def expire(self):
         self.memory.expire()

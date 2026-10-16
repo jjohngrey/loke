@@ -26,6 +26,7 @@ from loke_contracts.runtime import (
     RuntimeResetResult,
 )
 from loke_memory.store import ConflictError, Store
+from loke_memory.tiered import MemoryLimits
 
 from .agent_runtime import AgentRuntime, InMemorySessionStore, RuntimeCapacity, RuntimeConflict
 from .audio import transcribe
@@ -47,13 +48,19 @@ def create_app(database_url: str | None = None, learner_id: str | None = None,
         model_logger.setLevel(logging.INFO)
     if not model_logger.hasHandlers():
         model_logger.addHandler(logging.StreamHandler())
-    store = Store(database_url or os.getenv("DATABASE_URL", f"sqlite:///{ROOT / 'work/loke.db'}"))
+    store = Store(database_url or os.getenv("DATABASE_URL", "postgresql+psycopg://loke:loke@127.0.0.1:5432/loke"),
+        MemoryLimits(summary_trigger=int(os.getenv("MEMORY_SUMMARY_TRIGGER_MESSAGES", "100")),
+                     recent_messages=int(os.getenv("MEMORY_RECENT_MESSAGES", "40")),
+                     leaf_records=int(os.getenv("MEMORY_LEAF_RECORD_LIMIT", "200")),
+                     leaf_tokens=int(os.getenv("MEMORY_LEAF_TOKEN_LIMIT", "12000")),
+                     context_tokens=int(os.getenv("MEMORY_CONTEXT_TOKEN_LIMIT", "3000"))))
     mode = os.getenv("MODEL_MODE", "demo")
     if mode not in {"demo", "live"}:
         raise ValueError("MODEL_MODE must be demo or live.")
     coordinator = Coordinator(store, mode)
     scheduler = ReviewScheduler(
-        coordinator, store, float(os.getenv("SCHEDULER_INTERVAL_SECONDS", "30"))
+        coordinator, store, float(os.getenv("SCHEDULER_INTERVAL_SECONDS", "30")),
+        float(os.getenv("MEMORY_MAINTENANCE_INTERVAL_SECONDS", "900"))
     )
     selected_learner = learner_id or os.getenv("DEMO_LEARNER_ID", "demo-learner")
     token = os.getenv("SESSION_TOKEN", "local-demo-change-me")
@@ -153,15 +160,15 @@ def create_app(database_url: str | None = None, learner_id: str | None = None,
 
     @app.post("/api/reminders", dependencies=protected, response_model=LearningView)
     def reminders(payload: ReminderSettings):
-        return coordinator.reminders(selected_learner, payload.enabled)
+        return coordinator.reminders(selected_learner, payload.enabled, payload)
 
     @app.post("/api/demo/clock", dependencies=protected, response_model=LearningView)
     def clock(payload: ClockAdvance):
-        return coordinator.advance_clock(selected_learner, payload.hours)
+        return coordinator.advance_clock(selected_learner, payload.hours, payload)
 
     @app.delete("/api/learner", dependencies=protected, response_model=LearningView)
-    def delete_learner():
-        store.delete_learner(selected_learner)
+    def delete_learner(generation_id: str | None = None):
+        store.delete_learner(selected_learner, generation_id)
         return coordinator.view(selected_learner)
 
     @app.post("/api/audio/transcribe", dependencies=protected, response_model=TranscriptionResult)

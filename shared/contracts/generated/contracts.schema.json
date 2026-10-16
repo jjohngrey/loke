@@ -1,8 +1,96 @@
 {
   "$defs": {
+    "AgentMatch": {
+      "additionalProperties": false,
+      "properties": {
+        "agent_id": {
+          "title": "Agent Id",
+          "type": "string"
+        },
+        "root_id": {
+          "title": "Root Id",
+          "type": "string"
+        },
+        "score": {
+          "title": "Score",
+          "type": "integer"
+        },
+        "record_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Record Ids",
+          "type": "array"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "candidate_scan_truncated": {
+          "default": false,
+          "title": "Candidate Scan Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "agent_id",
+        "root_id",
+        "score",
+        "record_ids",
+        "reasons"
+      ],
+      "title": "AgentMatch",
+      "type": "object"
+    },
     "AnswerInput": {
       "additionalProperties": false,
       "properties": {
+        "generation_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation Id"
+        },
+        "expected_state_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected State Revision"
+        },
+        "expected_plan_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Plan Revision"
+        },
+        "scope": {
+          "$ref": "#/$defs/ChatScope"
+        },
         "request_id": {
           "maxLength": 100,
           "minLength": 1,
@@ -42,6 +130,63 @@
       "title": "ApiError",
       "type": "object"
     },
+    "ChatScope": {
+      "additionalProperties": false,
+      "properties": {
+        "chat_id": {
+          "default": "default",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Chat Id",
+          "type": "string"
+        },
+        "project_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project Id"
+        },
+        "folder_path": {
+          "items": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Folder Path",
+          "type": "array"
+        },
+        "concept_tags": {
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 24,
+          "title": "Concept Tags",
+          "type": "array"
+        },
+        "node_tags": {
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 24,
+          "title": "Node Tags",
+          "type": "array"
+        }
+      },
+      "title": "ChatScope",
+      "type": "object"
+    },
     "Choice": {
       "additionalProperties": false,
       "properties": {
@@ -68,6 +213,60 @@
     "ClockAdvance": {
       "additionalProperties": false,
       "properties": {
+        "generation_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation Id"
+        },
+        "expected_state_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected State Revision"
+        },
+        "expected_plan_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Plan Revision"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Id"
+        },
         "hours": {
           "default": 24,
           "maximum": 168,
@@ -77,6 +276,58 @@
         }
       },
       "title": "ClockAdvance",
+      "type": "object"
+    },
+    "CommitGuard": {
+      "additionalProperties": false,
+      "properties": {
+        "generation_id": {
+          "title": "Generation Id",
+          "type": "string"
+        },
+        "state_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "State Revision"
+        },
+        "plan_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Plan Revision"
+        },
+        "graph_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Graph Version"
+        }
+      },
+      "required": [
+        "generation_id"
+      ],
+      "title": "CommitGuard",
       "type": "object"
     },
     "Concept": {
@@ -168,6 +419,39 @@
     "ContextBundle": {
       "additionalProperties": false,
       "properties": {
+        "context_truncated": {
+          "default": false,
+          "title": "Context Truncated",
+          "type": "boolean"
+        },
+        "memory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MemoryContext"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "generation_id": {
+          "default": "",
+          "title": "Generation Id",
+          "type": "string"
+        },
+        "graph_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Graph Version"
+        },
         "learner_id": {
           "title": "Learner Id",
           "type": "string"
@@ -238,9 +522,146 @@
       "title": "ContextBundle",
       "type": "object"
     },
+    "DiscoveredConcept": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "aliases": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "array"
+        },
+        "citation_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Citation Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "aliases",
+        "citation_ids"
+      ],
+      "title": "DiscoveredConcept",
+      "type": "object"
+    },
+    "DiscoveredRelation": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "from_id": {
+          "title": "From Id",
+          "type": "string"
+        },
+        "to_id": {
+          "title": "To Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "prerequisite_of",
+            "related_to",
+            "part_of",
+            "supports"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "basis": {
+          "enum": [
+            "source_supported",
+            "inferred"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "origin": {
+          "enum": [
+            "patterns",
+            "model"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "citation_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Citation Ids",
+          "type": "array"
+        },
+        "usable": {
+          "title": "Usable",
+          "type": "boolean"
+        },
+        "held_reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "cycle",
+                "self_relation"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Held Reason"
+        }
+      },
+      "required": [
+        "id",
+        "from_id",
+        "to_id",
+        "kind",
+        "basis",
+        "origin",
+        "citation_ids",
+        "usable"
+      ],
+      "title": "DiscoveredRelation",
+      "type": "object"
+    },
     "EvidenceEvent": {
       "additionalProperties": false,
       "properties": {
+        "timestamp_provenance": {
+          "default": "wall_clock",
+          "enum": [
+            "wall_clock",
+            "legacy_unverified"
+          ],
+          "title": "Timestamp Provenance",
+          "type": "string"
+        },
+        "projection_after": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConceptState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "id": {
           "title": "Id",
           "type": "string"
@@ -354,6 +775,49 @@
     "GoalInput": {
       "additionalProperties": false,
       "properties": {
+        "generation_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation Id"
+        },
+        "expected_state_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected State Revision"
+        },
+        "expected_plan_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Plan Revision"
+        },
+        "scope": {
+          "$ref": "#/$defs/ChatScope"
+        },
         "request_id": {
           "maxLength": 100,
           "minLength": 1,
@@ -391,9 +855,103 @@
       "title": "GoalInput",
       "type": "object"
     },
+    "JobLease": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "learner_id": {
+          "title": "Learner Id",
+          "type": "string"
+        },
+        "generation_id": {
+          "title": "Generation Id",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "token": {
+          "title": "Token",
+          "type": "string"
+        },
+        "owner": {
+          "title": "Owner",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "title": "Expires At",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "learner_id",
+        "generation_id",
+        "kind",
+        "token",
+        "owner",
+        "expires_at",
+        "payload"
+      ],
+      "title": "JobLease",
+      "type": "object"
+    },
     "LearningInput": {
       "additionalProperties": false,
       "properties": {
+        "generation_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation Id"
+        },
+        "expected_state_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected State Revision"
+        },
+        "expected_plan_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Plan Revision"
+        },
+        "scope": {
+          "$ref": "#/$defs/ChatScope"
+        },
         "request_id": {
           "maxLength": 100,
           "minLength": 1,
@@ -427,6 +985,23 @@
     "LearningView": {
       "additionalProperties": false,
       "properties": {
+        "generation_id": {
+          "default": "",
+          "title": "Generation Id",
+          "type": "string"
+        },
+        "graph_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Graph Version"
+        },
         "learner_id": {
           "title": "Learner Id",
           "type": "string"
@@ -549,6 +1124,185 @@
       "title": "LearningView",
       "type": "object"
     },
+    "MemoryContext": {
+      "additionalProperties": false,
+      "properties": {
+        "generation_id": {
+          "title": "Generation Id",
+          "type": "string"
+        },
+        "matches": {
+          "items": {
+            "$ref": "#/$defs/AgentMatch"
+          },
+          "title": "Matches",
+          "type": "array"
+        },
+        "recent": {
+          "items": {
+            "$ref": "#/$defs/MemoryExcerpt"
+          },
+          "title": "Recent",
+          "type": "array"
+        },
+        "summaries": {
+          "items": {
+            "$ref": "#/$defs/MemoryExcerpt"
+          },
+          "title": "Summaries",
+          "type": "array"
+        },
+        "logs": {
+          "items": {
+            "$ref": "#/$defs/MemoryExcerpt"
+          },
+          "title": "Logs",
+          "type": "array"
+        },
+        "truncated": {
+          "default": false,
+          "title": "Truncated",
+          "type": "boolean"
+        },
+        "maintenance_saturated": {
+          "default": false,
+          "title": "Maintenance Saturated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "generation_id"
+      ],
+      "title": "MemoryContext",
+      "type": "object"
+    },
+    "MemoryExcerpt": {
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "anyOf": [
+            {
+              "enum": [
+                "user",
+                "assistant"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
+        "action_status": {
+          "anyOf": [
+            {
+              "enum": [
+                "started",
+                "succeeded",
+                "failed",
+                "cancelled",
+                "committed"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Action Status"
+        },
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "agent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent Id"
+        },
+        "chat_id": {
+          "title": "Chat Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "interaction",
+            "agent_log",
+            "summary"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "observed_at": {
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "reference_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reference Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "record_id",
+        "chat_id",
+        "kind",
+        "text",
+        "observed_at"
+      ],
+      "title": "MemoryExcerpt",
+      "type": "object"
+    },
+    "MemoryTurn": {
+      "additionalProperties": false,
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/ChatScope"
+        },
+        "user_text": {
+          "maxLength": 15000,
+          "title": "User Text",
+          "type": "string"
+        },
+        "operation": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Operation",
+          "type": "string"
+        },
+        "matched_agent_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 5,
+          "title": "Matched Agent Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "user_text",
+        "operation"
+      ],
+      "title": "MemoryTurn",
+      "type": "object"
+    },
     "MultipleChoiceElement": {
       "additionalProperties": false,
       "properties": {
@@ -666,6 +1420,92 @@
       "title": "Notification",
       "type": "object"
     },
+    "OperationalAction": {
+      "additionalProperties": false,
+      "properties": {
+        "operation": {
+          "default": "action",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Operation",
+          "type": "string"
+        },
+        "status": {
+          "default": "committed",
+          "enum": [
+            "started",
+            "succeeded",
+            "failed",
+            "cancelled",
+            "committed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "tool_name": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Name"
+        },
+        "tool_version": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Version"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At"
+        },
+        "ended_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ended At"
+        },
+        "matched_agent_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 5,
+          "title": "Matched Agent Ids",
+          "type": "array"
+        }
+      },
+      "title": "OperationalAction",
+      "type": "object"
+    },
     "QuizCard": {
       "additionalProperties": false,
       "properties": {
@@ -709,6 +1549,60 @@
     "ReminderSettings": {
       "additionalProperties": false,
       "properties": {
+        "generation_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation Id"
+        },
+        "expected_state_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected State Revision"
+        },
+        "expected_plan_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Plan Revision"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Id"
+        },
         "enabled": {
           "title": "Enabled",
           "type": "boolean"
@@ -1118,6 +2012,309 @@
       "title": "SourceChunk",
       "type": "object"
     },
+    "SourceCitation": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "document_id": {
+          "title": "Document Id",
+          "type": "string"
+        },
+        "passage_id": {
+          "title": "Passage Id",
+          "type": "string"
+        },
+        "page": {
+          "title": "Page",
+          "type": "integer"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Section"
+        },
+        "start": {
+          "title": "Start",
+          "type": "integer"
+        },
+        "end": {
+          "title": "End",
+          "type": "integer"
+        },
+        "quote": {
+          "title": "Quote",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "document_id",
+        "passage_id",
+        "page",
+        "section",
+        "start",
+        "end",
+        "quote"
+      ],
+      "title": "SourceCitation",
+      "type": "object"
+    },
+    "SourceDocument": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "text",
+            "markdown",
+            "pdf"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "content_hash": {
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "pages": {
+          "items": {
+            "$ref": "#/$defs/SourcePage"
+          },
+          "title": "Pages",
+          "type": "array"
+        },
+        "passages": {
+          "items": {
+            "$ref": "#/$defs/SourcePassage"
+          },
+          "title": "Passages",
+          "type": "array"
+        },
+        "textless_pages": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Textless Pages",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "kind",
+        "content_hash",
+        "pages",
+        "passages"
+      ],
+      "title": "SourceDocument",
+      "type": "object"
+    },
+    "SourceGraph": {
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": "source-graph-v1",
+          "default": "source-graph-v1",
+          "title": "Version",
+          "type": "string"
+        },
+        "graph_hash": {
+          "title": "Graph Hash",
+          "type": "string"
+        },
+        "document_id": {
+          "title": "Document Id",
+          "type": "string"
+        },
+        "content_hash": {
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "source_only": {
+          "const": true,
+          "default": true,
+          "title": "Source Only",
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "ready",
+            "needs_clarification",
+            "insufficient_source",
+            "no_concepts"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "origin": {
+          "enum": [
+            "patterns",
+            "model",
+            "fallback"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "concepts": {
+          "items": {
+            "$ref": "#/$defs/DiscoveredConcept"
+          },
+          "title": "Concepts",
+          "type": "array"
+        },
+        "relations": {
+          "items": {
+            "$ref": "#/$defs/DiscoveredRelation"
+          },
+          "title": "Relations",
+          "type": "array"
+        },
+        "citations": {
+          "items": {
+            "$ref": "#/$defs/SourceCitation"
+          },
+          "title": "Citations",
+          "type": "array"
+        },
+        "goal_concept_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Goal Concept Ids",
+          "type": "array"
+        },
+        "inspected_passage_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Inspected Passage Ids",
+          "type": "array"
+        },
+        "omitted_passage_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Omitted Passage Ids",
+          "type": "array"
+        },
+        "clarification": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clarification"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "graph_hash",
+        "document_id",
+        "content_hash",
+        "status",
+        "origin",
+        "concepts",
+        "relations",
+        "citations",
+        "goal_concept_ids",
+        "inspected_passage_ids",
+        "omitted_passage_ids"
+      ],
+      "title": "SourceGraph",
+      "type": "object"
+    },
+    "SourcePage": {
+      "additionalProperties": false,
+      "properties": {
+        "number": {
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "number",
+        "text"
+      ],
+      "title": "SourcePage",
+      "type": "object"
+    },
+    "SourcePassage": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "page": {
+          "title": "Page",
+          "type": "integer"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Section"
+        },
+        "start": {
+          "title": "Start",
+          "type": "integer"
+        },
+        "end": {
+          "title": "End",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "page",
+        "section",
+        "start",
+        "end",
+        "text"
+      ],
+      "title": "SourcePassage",
+      "type": "object"
+    },
     "TopicProposal": {
       "additionalProperties": false,
       "properties": {
@@ -1204,6 +2401,30 @@
     "error": {
       "$ref": "#/$defs/ApiError"
     },
+    "operational_action": {
+      "$ref": "#/$defs/OperationalAction"
+    },
+    "memory_turn": {
+      "$ref": "#/$defs/MemoryTurn"
+    },
+    "commit_guard": {
+      "$ref": "#/$defs/CommitGuard"
+    },
+    "job_lease": {
+      "$ref": "#/$defs/JobLease"
+    },
+    "chat_scope": {
+      "$ref": "#/$defs/ChatScope"
+    },
+    "memory_context": {
+      "$ref": "#/$defs/MemoryContext"
+    },
+    "source_document": {
+      "$ref": "#/$defs/SourceDocument"
+    },
+    "source_graph": {
+      "$ref": "#/$defs/SourceGraph"
+    },
     "runtime_request": {
       "$ref": "#/$defs/RuntimeRequest"
     },
@@ -1240,6 +2461,14 @@
     "proposal",
     "transcription",
     "error",
+    "operational_action",
+    "memory_turn",
+    "commit_guard",
+    "job_lease",
+    "chat_scope",
+    "memory_context",
+    "source_document",
+    "source_graph",
     "runtime_request",
     "runtime_control",
     "runtime_reset",
@@ -1249,6 +2478,6 @@
     "run_event",
     "run_outcome"
   ],
-  "title": "ContractBundle",
+  "title": "PublishedContracts",
   "type": "object"
 }

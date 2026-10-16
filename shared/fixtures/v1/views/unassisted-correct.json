@@ -1,4 +1,6 @@
 {
+  "generation_id": "fixture-generation-6",
+  "graph_version": null,
   "learner_id": "fixture-learner",
   "goal": "Understand neuronal transmitter release",
   "storage_consent": true,
@@ -135,6 +137,15 @@
   ],
   "events": [
     {
+      "timestamp_provenance": "wall_clock",
+      "projection_after": {
+        "concept_id": "action_potential_phases",
+        "status": "recent_unassisted_correct",
+        "evidence_ids": [
+          "8f4ae62c-31f6-5735-9240-87fee5168f04"
+        ],
+        "next_review_at": "2026-10-20T01:00:00Z"
+      },
       "id": "8f4ae62c-31f6-5735-9240-87fee5168f04",
       "card_id": "ap-depolarization",
       "expected_answer": "b",

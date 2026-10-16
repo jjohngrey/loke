@@ -20,7 +20,7 @@ test("progress replay and final outcomes merge one card by run/element identity"
   let state = events.reduce(applyRunEvent, emptyDisplay());
   state = events.reduce(applyRunEvent, state);
   assert.equal(state.text, "Final text.");
-  assert.equal(state.elements.length, 1);
+  assert.deepEqual(state.blocks.filter((block) => block.kind === "element").map((block) => block.element), [element]);
   assert.equal(state.sequence, 3);
   assert.equal(applyRunEvent(state, { ...event(4, "element", { element }), run_id: "another" }), state);
 });

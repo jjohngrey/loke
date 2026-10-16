@@ -22,7 +22,7 @@ third_party/openpoke/    # Pinned source attribution and retained MIT license
 
 ## Start
 
-Needs Python 3.11+, Node 22+ and uv. Docker is optional for PostgreSQL. Default demo mode runs with SQLite and no API keys.
+Needs Python 3.11+, Node 22+ and uv. PostgreSQL is required. Demo mode needs no model API keys. Start PostgreSQL with `docker compose up -d` before launching.
 
 ```sh
 cp .env.example .env
@@ -106,7 +106,9 @@ pass covering options → card → selection → follow-up, Stop, Reset and reco
 docker compose up -d
 ```
 
-Set DATABASE_URL to the PostgreSQL value in .env.example and restart. Schema creation is bootstrap-only; C should add versioned migrations before expanding the data model. SQLite and PostgreSQL databases are separate; switching URLs does not migrate existing learner records.
+Set DATABASE_URL to the PostgreSQL value in .env.example and restart. Versioned migrations run transactionally at startup. Back up an existing database before upgrading. SQLite URLs are rejected and existing SQLite files remain untouched; switching URLs does not transfer their records.
+
+For database tests, set LOKE_TEST_DATABASE_URL to an isolated PostgreSQL database. Tests create and drop random schemas there. See docs/LAYER_C_PLAN.md for implementation scope.
 
 ## Verify
 

@@ -2,12 +2,13 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import MetaData, Table, insert, inspect, select, text
+from sqlalchemy import MetaData, Table, delete, insert, inspect, select, text
 
 from . import tables as db
+from . import tiered_tables  # noqa: F401
 from .retrieval import tokens
 
-VERSION = 1
+VERSION = 3
 
 
 def migrate(engine):
@@ -22,8 +23,23 @@ def migrate(engine):
         if current == VERSION:
             return
         db.metadata.create_all(conn)
+        if current == 1:
+            conn.execute(text("ALTER TABLE memory_corrections DROP CONSTRAINT IF EXISTS memory_corrections_learner_id_event_id_fkey"))
+            conn.execute(text("ALTER TABLE memory_corrections ADD CONSTRAINT memory_corrections_learner_id_event_id_fkey FOREIGN KEY (learner_id, event_id) REFERENCES memory_events (learner_id, key) ON DELETE CASCADE"))
         if "learners" in inspect(conn).get_table_names():
             _legacy(conn)
+        from loke_contracts.catalog import CONCEPTS
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        for concept in CONCEPTS:
+            conn.execute(pg_insert(db.reviewed_concepts).values(id=concept["id"], data=concept).on_conflict_do_nothing())
+            for prerequisite in concept["prerequisites"]:
+                conn.execute(pg_insert(db.reviewed_edges).values(
+                    id=f"prerequisite:{prerequisite}:{concept['id']}", from_id=prerequisite,
+                    to_id=concept["id"], kind="prerequisite_of", version="neuro-v1").on_conflict_do_nothing())
+        conn.execute(pg_insert(db.reviewed_edges).values(id="related:ionic:selective",
+            from_id="ionic_gradients", to_id="selective_permeability", kind="related_to",
+            version="neuro-v1").on_conflict_do_nothing())
+        conn.execute(delete(db.versions))
         conn.execute(insert(db.versions).values(version=VERSION))
 
 
@@ -31,6 +47,11 @@ def _legacy(conn):
     legacy = MetaData()
     names = ("learners", "agents", "learning_events", "concept_state", "sources", "plans", "jobs")
     old = {name: Table(name, legacy, autoload_with=conn) for name in names}
+    for name in names[1:]:
+        orphan = conn.execute(select(old[name].c.id).outerjoin(old["learners"],
+            old[name].c.learner_id == old["learners"].c.id).where(old["learners"].c.id.is_(None)).limit(10)).scalars().all()
+        if orphan:
+            raise ValueError(f"Legacy {name} has unowned record IDs: {orphan}; migration stopped.")
     for row in conn.execute(select(old["learners"])).mappings():
         learner, profile, generation = row["id"], row["data"], str(uuid4())
         conn.execute(insert(db.generations).values(learner_id=learner, generation_id=generation))
@@ -51,6 +72,7 @@ def _legacy(conn):
                     key = record["id"]
                     extra["subject"] = data["subject_key"]
                 elif name == "learning_events":
+                    data = dict(data, timestamp_provenance="legacy_unverified")
                     extra = dict(sequence=sequence, observed_at=datetime.fromisoformat(data["occurred_at"]))
                 elif name == "concept_state":
                     key = data["concept_id"]
@@ -66,6 +88,7 @@ def _legacy(conn):
                         extra = dict(fingerprint=data["fingerprint"], created_at=now,
                                      expires_at=now + timedelta(hours=24))
                         data = data["outcome"] | {"generation_id": generation}
+                        data["events"] = [dict(e, timestamp_provenance="legacy_unverified") for e in data.get("events", [])]
                     elif data["kind"] == "notification":
                         target = db.notifications
                     else:
@@ -73,6 +96,11 @@ def _legacy(conn):
                                      due_at=datetime.fromisoformat(data["due_at"]))
                 conn.execute(insert(target).values(learner_id=learner, generation_id=generation,
                                                    key=key, data=data, **extra))
+    for learner in conn.execute(select(db.learners.c.learner_id)).scalars():
+        excess = select(db.outcomes.c.key).where(db.outcomes.c.learner_id == learner).order_by(
+            db.outcomes.c.created_at.desc(), db.outcomes.c.key).offset(100)
+        conn.execute(delete(db.outcomes).where(db.outcomes.c.learner_id == learner,
+                                             db.outcomes.c.key.in_(excess)))
     # The successful backfill removes legacy learner-content tables, avoiding undeleted copies.
     # Keep the global reviewed concepts table for backward compatibility.
     for name in reversed(names):

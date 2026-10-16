@@ -202,3 +202,22 @@ Add meaningful tests for the missing behaviors above to the shared suite with co
 Deliver changed-file/contract/migration notes, tests passed, exact unresolved limitations and a real-flow result. Verify schema generation produces no unexplained diff, OpenAPI matches routes, and A's proxy allowlist matches new paths. Record PostgreSQL/live/native checks as unverified if unavailable. No push or commit unless the teammate explicitly asks.
 
 Cut automatic topic splitting, recursive agents, arbitrary subjects, generated images/video, phone/SMS, embeddings/vector databases and packaged distribution first. Preserve atomic learning turns, traceable reasons, restart identity, consent/reset safety, active-quiz suppression and one durable review. Keep this handoff aligned with the implemented contract after each slice instead of leaving proposed fields looking shipped.
+
+## Layer C integration update
+
+The approved memory slice now uses PostgreSQL only. Coordinator goal/input/answer accept optional
+ChatScope and generation/version envelopes, explicitly retrieve agent memories across chats and
+record committed conversations/actions atomically with learning turns. The shared source models
+live in loke_contracts.source; the intelligence source_models module re-exports them.
+
+C supplies reset generations, bounded replay outcomes, document/graph persistence, typed context,
+category log trees and leased maintenance. The scheduler rechecks review eligibility within the
+learner transaction and runs memory maintenance/cleanup on separate cadences. New evidence uses
+wall time and carries explicit projection-after data for B's replay reducer. Older audited gap
+items above describing bootstrap storage, unbounded outcomes, shifted observation timestamps or
+missing reset generations are superseded by this slice.
+
+Quiz-session lifecycle, notification actions, generic source-category HTTP execution and UI chat
+identity wiring remain B/A integration. The existing dictionary transform is now an explicitly
+typed transitional wrapper; it has not been replaced by a generic agent framework. See
+../../docs/MEMORY_OPERATIONS.md for exact contracts and limits.

@@ -356,12 +356,12 @@ def test_context_trims_complete_exchanges_and_store_bounds_history():
     asyncio.run(scenario())
 
 
-def test_authenticated_stream_replay_conflict_and_reset(tmp_path, monkeypatch):
+def test_authenticated_stream_replay_conflict_and_reset(pg_url, monkeypatch):
     monkeypatch.setenv("MODEL_MODE", "demo")
     monkeypatch.setenv("SESSION_TOKEN", "test-runtime-token")
     model = FakeModel(ModelReply("First", [call()]), ModelReply("Choose."), ModelReply("After reset"))
     runtime = engine(model)
-    app = create_app(f"sqlite:///{tmp_path / 'api.db'}", agent_runtime=runtime)
+    app = create_app(pg_url, agent_runtime=runtime)
     headers = {"x-loke-session": "test-runtime-token"}
     with TestClient(app) as client:
         payload = request().model_dump()
@@ -590,7 +590,7 @@ def test_length_finish_reason_is_output_budget_with_usage_diagnostics(monkeypatc
     asyncio.run(scenario())
 
 
-def test_model_diagnostics_are_visible_with_default_server_logging():
+def test_model_diagnostics_are_visible_with_default_server_logging(pg_url):
     result = subprocess.run([sys.executable, "-c", """
 import logging
 import uvicorn
@@ -602,7 +602,7 @@ logger = logging.getLogger('loke_intelligence.runtime_model')
 assert logger.isEnabledFor(logging.INFO)
 assert logger.hasHandlers()
 logger.info('runtime_model_response startup-diagnostic')
-"""], env={**os.environ, "MODEL_MODE": "demo", "DATABASE_URL": "sqlite:///:memory:"},
+"""], env={**os.environ, "MODEL_MODE": "demo", "DATABASE_URL": pg_url},
         capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert "runtime_model_response startup-diagnostic" in result.stderr

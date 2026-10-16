@@ -1,4 +1,6 @@
 {
+  "generation_id": "fixture-generation-7",
+  "graph_version": null,
   "learner_id": "fixture-learner",
   "goal": "Understand neuronal transmitter release",
   "storage_consent": true,
@@ -126,6 +128,8 @@
   ],
   "events": [
     {
+      "timestamp_provenance": "wall_clock",
+      "projection_after": null,
       "id": "19298b37-a90a-5828-b785-2297fb0a535b",
       "card_id": null,
       "expected_answer": null,

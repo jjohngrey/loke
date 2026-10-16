@@ -28,13 +28,13 @@ def read(name):
     return json.loads((FIXTURES / name).read_text())
 
 
-@pytest.fixture(params=["fake", "sqlite"])
-def memory(request, tmp_path):
+@pytest.fixture(params=["fake", "postgresql"])
+def memory(request, pg_url):
     adapter = (
-        FakeMemory() if request.param == "fake" else Store(f"sqlite:///{tmp_path / 'port.db'}")
+        FakeMemory() if request.param == "fake" else Store(pg_url)
     )
     yield adapter
-    if request.param == "sqlite":
+    if request.param == "postgresql":
         adapter.engine.dispose()
 
 
@@ -96,7 +96,8 @@ def test_fixtures_validate_and_have_real_cross_references():
 
 def test_memory_atomic_rollback_dedupe_and_isolation(memory):
     def commit(s):
-        s["response"] = "Committed together"
+        s["storage_consent"] = True
+        s["response"] = f"Committed at revision {s['state_revision']}"
         s["plan_revision"] += 1
 
     first = memory.mutate("one", "first", "payload", 0, commit)
@@ -129,10 +130,10 @@ def test_memory_atomic_rollback_dedupe_and_isolation(memory):
     assert memory.mutate("one", "first", "new generation payload", 0, commit)["state_revision"] == 1
 
 
-def test_http_examples_and_openapi(tmp_path, monkeypatch):
+def test_http_examples_and_openapi(pg_url, monkeypatch):
     monkeypatch.setenv("SESSION_TOKEN", "fixture-token")
     monkeypatch.setenv("MODEL_MODE", "live")
-    app = create_app(f"sqlite:///{tmp_path / 'http.db'}", "fixture-learner")
+    app = create_app(pg_url, "fixture-learner")
     headers = {"x-loke-session": "fixture-token"}
 
     async def failed_provider(*args):
@@ -175,10 +176,10 @@ def test_http_examples_and_openapi(tmp_path, monkeypatch):
                 ].endswith("/ApiError")
 
 
-def test_transcription_example_is_unsaved_until_confirmed(tmp_path, monkeypatch):
+def test_transcription_example_is_unsaved_until_confirmed(pg_url, monkeypatch):
     monkeypatch.setenv("SESSION_TOKEN", "fixture-token")
     monkeypatch.setenv("MODEL_MODE", "demo")
-    app = create_app(f"sqlite:///{tmp_path / 'audio.db'}", "fixture-learner")
+    app = create_app(pg_url, "fixture-learner")
     headers = {"x-loke-session": "fixture-token", "audio-consent": "true"}
     example = read("transcription.json")
 
