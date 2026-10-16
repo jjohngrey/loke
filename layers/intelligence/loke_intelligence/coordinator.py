@@ -38,6 +38,8 @@ class Coordinator:
         )
         return LearningView(
             learner_id=learner_id,
+            generation_id=snapshot["generation_id"],
+            graph_version=snapshot.get("graph_version"),
             goal=snapshot["goal"],
             storage_consent=snapshot["storage_consent"],
             reminders_enabled=snapshot["reminders_enabled"],

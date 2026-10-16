@@ -5,6 +5,29 @@
  * and run json-schema-to-typescript to regenerate this file.
  */
 
+export type ChatId = string;
+export type ProjectId = string | null;
+/**
+ * @maxItems 8
+ */
+export type FolderPath =
+  | []
+  | [string]
+  | [string, string]
+  | [string, string, string]
+  | [string, string, string, string]
+  | [string, string, string, string, string]
+  | [string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string, string];
+/**
+ * @maxItems 24
+ */
+export type ConceptTags = string[];
+/**
+ * @maxItems 24
+ */
+export type NodeTags = string[];
 export type RequestId = string;
 export type Goal = string;
 export type StorageConsent = boolean;
@@ -18,6 +41,8 @@ export type CardId = string;
 export type Answer = string;
 export type Enabled = boolean;
 export type Hours = number;
+export type GenerationId = string;
+export type GraphVersion = string | null;
 export type LearnerId = string;
 export type Goal1 = string;
 export type StorageConsent1 = boolean;
@@ -71,8 +96,28 @@ export type SourceId = string;
 export type Title2 = string;
 export type Text2 = string;
 export type Sources = SourceChunk[];
+export type GenerationId1 = string;
+export type AgentId1 = string;
+export type RootId = string;
+export type Score = number;
+export type RecordIds = string[];
+export type Reasons = string[];
+export type Matches = AgentMatch[];
+export type RecordId = string;
+export type AgentId2 = string | null;
+export type ChatId1 = string;
+export type Kind3 = "interaction" | "agent_log" | "summary";
+export type Text3 = string;
+export type ObservedAt = string;
+export type ReferenceIds = string[];
+export type Recent = MemoryExcerpt[];
+export type Summaries = MemoryExcerpt[];
+export type Logs = MemoryExcerpt[];
+export type Truncated = boolean;
+export type GenerationId2 = string;
+export type GraphVersion1 = string | null;
 export type LearnerId1 = string;
-export type AgentId1 = string | null;
+export type AgentId3 = string | null;
 export type Goal2 = string;
 export type StateRevision1 = number;
 export type PlanRevision1 = number;
@@ -82,12 +127,74 @@ export type Events1 = EvidenceEvent[];
 export type Sources1 = SourceChunk[];
 export type ConceptId4 = string | null;
 export type Explanation = string;
-export type Text3 = string;
+export type Text4 = string;
 export type Provenance = "audio_transcription";
 export type Saved = false;
 export type Detail = string;
+export type GenerationId3 = string;
+export type StateRevision2 = number | null;
+export type PlanRevision2 = number | null;
+export type GraphVersion2 = string | null;
+export type Id4 = string;
+export type LearnerId2 = string;
+export type GenerationId4 = string;
+export type Kind4 = string;
+export type Token = string;
+export type Owner = string;
+export type ExpiresAt = string;
+export type Id5 = string;
+export type Title3 = string;
+export type Kind5 = "text" | "markdown" | "pdf";
+export type ContentHash = string;
+export type Number = number;
+export type Text5 = string;
+export type Pages = SourcePage[];
+export type Id6 = string;
+export type Page = number;
+export type Section = string | null;
+export type Start = number;
+export type End = number;
+export type Text6 = string;
+export type Passages = SourcePassage[];
+export type TextlessPages = number[];
+export type Version = "source-graph-v1";
+export type GraphHash = string;
+export type DocumentId = string;
+export type ContentHash1 = string;
+export type SourceOnly = true;
+export type Status1 = "ready" | "needs_clarification" | "insufficient_source" | "no_concepts";
+export type Origin = "patterns" | "model" | "fallback";
+export type Id7 = string;
+export type Label1 = string;
+export type Aliases1 = string[];
+export type CitationIds = string[];
+export type Concepts2 = DiscoveredConcept[];
+export type Id8 = string;
+export type FromId = string;
+export type ToId = string;
+export type Kind6 = "prerequisite_of" | "related_to" | "part_of" | "supports";
+export type Basis = "source_supported" | "inferred";
+export type Origin1 = "patterns" | "model";
+export type CitationIds1 = string[];
+export type Usable = boolean;
+export type HeldReason = ("cycle" | "self_relation") | null;
+export type Relations = DiscoveredRelation[];
+export type Id9 = string;
+export type DocumentId1 = string;
+export type PassageId = string;
+export type Page1 = number;
+export type Section1 = string | null;
+export type Start1 = number;
+export type End1 = number;
+export type Quote = string;
+export type Citations = SourceCitation[];
+export type GoalConceptIds = string[];
+export type InspectedPassageIds = string[];
+export type OmittedPassageIds = string[];
+export type Clarification = string | null;
+export type Warnings = string[];
 
-export interface ContractBundle {
+export interface PublishedContracts {
   goal: GoalInput;
   learning_input: LearningInput;
   answer: AnswerInput;
@@ -98,20 +205,36 @@ export interface ContractBundle {
   proposal: TopicProposal;
   transcription: TranscriptionResult;
   error: ApiError;
+  commit_guard: CommitGuard;
+  job_lease: JobLease;
+  chat_scope: ChatScope;
+  memory_context: MemoryContext;
+  source_document: SourceDocument;
+  source_graph: SourceGraph;
 }
 export interface GoalInput {
+  scope?: ChatScope;
   request_id: RequestId;
   goal: Goal;
   storage_consent: StorageConsent;
   reminders_enabled?: RemindersEnabled;
   study_minutes?: StudyMinutes;
 }
+export interface ChatScope {
+  chat_id?: ChatId;
+  project_id?: ProjectId;
+  folder_path?: FolderPath;
+  concept_tags?: ConceptTags;
+  node_tags?: NodeTags;
+}
 export interface LearningInput {
+  scope?: ChatScope;
   request_id: RequestId1;
   text: Text;
   mode?: Mode;
 }
 export interface AnswerInput {
+  scope?: ChatScope;
   request_id: RequestId2;
   card_id: CardId;
   answer: Answer;
@@ -123,6 +246,8 @@ export interface ClockAdvance {
   hours?: Hours;
 }
 export interface LearningView {
+  generation_id?: GenerationId;
+  graph_version?: GraphVersion;
   learner_id: LearnerId;
   goal: Goal1;
   storage_consent: StorageConsent1;
@@ -197,8 +322,11 @@ export interface SourceChunk {
   text: Text2;
 }
 export interface ContextBundle {
+  memory?: MemoryContext | null;
+  generation_id?: GenerationId2;
+  graph_version?: GraphVersion1;
   learner_id: LearnerId1;
-  agent_id: AgentId1;
+  agent_id: AgentId3;
   goal: Goal2;
   state_revision: StateRevision1;
   plan_revision: PlanRevision1;
@@ -207,15 +335,123 @@ export interface ContextBundle {
   events: Events1;
   sources: Sources1;
 }
+export interface MemoryContext {
+  generation_id: GenerationId1;
+  matches?: Matches;
+  recent?: Recent;
+  summaries?: Summaries;
+  logs?: Logs;
+  truncated?: Truncated;
+}
+export interface AgentMatch {
+  agent_id: AgentId1;
+  root_id: RootId;
+  score: Score;
+  record_ids: RecordIds;
+  reasons: Reasons;
+}
+export interface MemoryExcerpt {
+  record_id: RecordId;
+  agent_id?: AgentId2;
+  chat_id: ChatId1;
+  kind: Kind3;
+  text: Text3;
+  observed_at: ObservedAt;
+  reference_ids?: ReferenceIds;
+}
 export interface TopicProposal {
   concept_id: ConceptId4;
   explanation: Explanation;
 }
 export interface TranscriptionResult {
-  text: Text3;
+  text: Text4;
   provenance?: Provenance;
   saved?: Saved;
 }
 export interface ApiError {
   detail: Detail;
+}
+export interface CommitGuard {
+  generation_id: GenerationId3;
+  state_revision?: StateRevision2;
+  plan_revision?: PlanRevision2;
+  graph_version?: GraphVersion2;
+}
+export interface JobLease {
+  id: Id4;
+  learner_id: LearnerId2;
+  generation_id: GenerationId4;
+  kind: Kind4;
+  token: Token;
+  owner: Owner;
+  expires_at: ExpiresAt;
+  payload: Payload;
+}
+export interface Payload {
+  [k: string]: unknown;
+}
+export interface SourceDocument {
+  id: Id5;
+  title: Title3;
+  kind: Kind5;
+  content_hash: ContentHash;
+  pages: Pages;
+  passages: Passages;
+  textless_pages?: TextlessPages;
+}
+export interface SourcePage {
+  number: Number;
+  text: Text5;
+}
+export interface SourcePassage {
+  id: Id6;
+  page: Page;
+  section: Section;
+  start: Start;
+  end: End;
+  text: Text6;
+}
+export interface SourceGraph {
+  version?: Version;
+  graph_hash: GraphHash;
+  document_id: DocumentId;
+  content_hash: ContentHash1;
+  source_only?: SourceOnly;
+  status: Status1;
+  origin: Origin;
+  concepts: Concepts2;
+  relations: Relations;
+  citations: Citations;
+  goal_concept_ids: GoalConceptIds;
+  inspected_passage_ids: InspectedPassageIds;
+  omitted_passage_ids: OmittedPassageIds;
+  clarification?: Clarification;
+  warnings?: Warnings;
+}
+export interface DiscoveredConcept {
+  id: Id7;
+  label: Label1;
+  aliases: Aliases1;
+  citation_ids: CitationIds;
+}
+export interface DiscoveredRelation {
+  id: Id8;
+  from_id: FromId;
+  to_id: ToId;
+  kind: Kind6;
+  basis: Basis;
+  origin: Origin1;
+  citation_ids: CitationIds1;
+  usable: Usable;
+  held_reason?: HeldReason;
+}
+export interface SourceCitation {
+  id: Id9;
+  document_id: DocumentId1;
+  passage_id: PassageId;
+  page: Page1;
+  section: Section1;
+  start: Start1;
+  end: End1;
+  quote: Quote;
 }

@@ -34,9 +34,14 @@ def scenarios(memory: MemoryPort) -> dict:
     service = Coordinator(memory)
     sequence = count()
     views = {}
+    generations = {}
 
     def capture(name, view):
-        views[name] = view.model_dump(mode="json")
+        value = view.model_dump(mode="json")
+        generation = value["generation_id"]
+        generations.setdefault(generation, f"fixture-generation-{len(generations) + 1}")
+        value["generation_id"] = generations[generation]
+        views[name] = value
 
     def start():
         memory.delete_learner("fixture-learner")

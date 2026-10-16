@@ -8,7 +8,43 @@ class Contract(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class ChatScope(Contract):
+    chat_id: str = Field(default="default", min_length=1, max_length=100)
+    project_id: str | None = Field(default=None, max_length=100)
+    folder_path: list[str] = Field(default_factory=list, max_length=8)
+    concept_tags: list[str] = Field(default_factory=list, max_length=24)
+    node_tags: list[str] = Field(default_factory=list, max_length=24)
+
+
+class MemoryExcerpt(Contract):
+    record_id: str
+    agent_id: str | None = None
+    chat_id: str
+    kind: Literal["interaction", "agent_log", "summary"]
+    text: str
+    observed_at: datetime
+    reference_ids: list[str] = Field(default_factory=list)
+
+
+class AgentMatch(Contract):
+    agent_id: str
+    root_id: str
+    score: int
+    record_ids: list[str]
+    reasons: list[str]
+
+
+class MemoryContext(Contract):
+    generation_id: str
+    matches: list[AgentMatch] = Field(default_factory=list)
+    recent: list[MemoryExcerpt] = Field(default_factory=list)
+    summaries: list[MemoryExcerpt] = Field(default_factory=list)
+    logs: list[MemoryExcerpt] = Field(default_factory=list)
+    truncated: bool = False
+
+
 class GoalInput(Contract):
+    scope: ChatScope = Field(default_factory=ChatScope)
     request_id: str = Field(min_length=1, max_length=100)
     goal: str = Field(min_length=3, max_length=500)
     storage_consent: bool
@@ -17,12 +53,14 @@ class GoalInput(Contract):
 
 
 class LearningInput(Contract):
+    scope: ChatScope = Field(default_factory=ChatScope)
     request_id: str = Field(min_length=1, max_length=100)
     text: str = Field(min_length=1, max_length=15000)
     mode: Literal["text", "voice", "attachment"] = "text"
 
 
 class AnswerInput(Contract):
+    scope: ChatScope = Field(default_factory=ChatScope)
     request_id: str = Field(min_length=1, max_length=100)
     card_id: str
     answer: str = Field(min_length=1, max_length=200)
@@ -108,6 +146,8 @@ class SourceChunk(Contract):
 
 
 class LearningView(Contract):
+    generation_id: str = ""
+    graph_version: str | None = None
     learner_id: str
     goal: str
     storage_consent: bool
@@ -133,6 +173,9 @@ class TopicProposal(Contract):
 
 
 class ContextBundle(Contract):
+    memory: MemoryContext | None = None
+    generation_id: str = ""
+    graph_version: str | None = None
     learner_id: str
     agent_id: str | None
     goal: str

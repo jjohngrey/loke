@@ -1,4 +1,7 @@
 {
+  "memory": null,
+  "generation_id": "",
+  "graph_version": null,
   "learner_id": "fixture-learner",
   "agent_id": "31cce85f-3778-5844-bcc9-0662276fc901",
   "goal": "Understand neuronal transmitter release",
