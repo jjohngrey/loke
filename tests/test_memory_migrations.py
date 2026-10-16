@@ -101,3 +101,31 @@ def test_newer_database_schema_is_rejected(pg_url):
     with pytest.raises(ValueError, match="newer"):
         migrate(engine)
     engine.dispose()
+
+
+def test_upgrade_removes_existing_deadline_without_deleting_history(pg_url):
+    from loke_memory.store import Store
+
+    from .test_memory_store import goal
+
+    store = Store(pg_url)
+    goal(store)
+    before = store.snapshot("one")
+    with store.engine.begin() as conn:
+        conn.execute(db.learners.update().values(
+            expires_at=datetime.now(UTC) - timedelta(days=1),
+            data=dict(before, expires_at=(datetime.now(UTC) - timedelta(days=1)).isoformat())))
+        conn.execute(db.versions.update().values(version=3))
+        conn.exec_driver_sql("ALTER TABLE memory_learners ALTER COLUMN expires_at SET NOT NULL")
+    reopened = Store(pg_url)
+    reopened.expire()
+    after = reopened.snapshot("one")
+    assert after["expires_at"] is None
+    assert after["generation_id"] == before["generation_id"]
+    assert after["goal"] == before["goal"]
+    with reopened.engine.connect() as conn:
+        assert conn.execute(select(db.learners.c.expires_at)).scalar_one() is None
+    reopened.delete_learner("one")
+    assert reopened.snapshot("one")["generation_id"] != before["generation_id"]
+    store.engine.dispose()
+    reopened.engine.dispose()

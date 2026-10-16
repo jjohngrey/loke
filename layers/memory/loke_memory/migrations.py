@@ -8,7 +8,7 @@ from . import tables as db
 from . import tiered_tables  # noqa: F401
 from .retrieval import tokens
 
-VERSION = 3
+VERSION = 4
 
 
 def migrate(engine):
@@ -28,6 +28,15 @@ def migrate(engine):
             conn.execute(text("ALTER TABLE memory_corrections ADD CONSTRAINT memory_corrections_learner_id_event_id_fkey FOREIGN KEY (learner_id, event_id) REFERENCES memory_events (learner_id, key) ON DELETE CASCADE"))
         if "learners" in inspect(conn).get_table_names():
             _legacy(conn)
+        # Permanent local retention applies to existing profiles as well as new ones.
+        conn.execute(text("ALTER TABLE memory_learners ALTER COLUMN expires_at DROP NOT NULL"))
+        for row in conn.execute(select(db.learners)).mappings().all():
+            conn.execute(db.learners.update().where(db.learners.c.learner_id == row["learner_id"])
+                .values(expires_at=None, data=dict(row["data"], expires_at=None)))
+        # Cached responses contain profile snapshots, but retain their own retry TTL.
+        for row in conn.execute(select(db.outcomes)).mappings().all():
+            conn.execute(db.outcomes.update().where(db.outcomes.c.learner_id == row["learner_id"],
+                db.outcomes.c.key == row["key"]).values(data=dict(row["data"], expires_at=None)))
         from loke_contracts.catalog import CONCEPTS
         from sqlalchemy.dialects.postgresql import insert as pg_insert
         for concept in CONCEPTS:
@@ -57,7 +66,7 @@ def _legacy(conn):
         conn.execute(insert(db.generations).values(learner_id=learner, generation_id=generation))
         conn.execute(insert(db.learners).values(learner_id=learner, generation_id=generation,
             revision=row["revision"], data=profile,
-            expires_at=datetime.fromisoformat(profile["expires_at"])))
+            expires_at=datetime.fromisoformat(profile["expires_at"]) if profile.get("expires_at") else None))
         mapping = {"agents": db.agents, "learning_events": db.events, "concept_state": db.states,
                    "sources": db.sources, "plans": db.plans, "jobs": db.jobs}
         for name, target in mapping.items():

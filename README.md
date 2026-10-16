@@ -22,7 +22,7 @@ third_party/openpoke/    # Pinned source attribution and retained MIT license
 
 ## Start
 
-Needs Python 3.11+, Node 22+ and uv. PostgreSQL is required. Demo mode needs no model API keys. Start PostgreSQL with `docker compose up -d` before launching.
+Needs Python 3.11+, Node 22+ and uv. Optional voice input also needs FFmpeg (`brew install ffmpeg` on macOS) and `OPENAI_API_KEY`. PostgreSQL is required. Demo mode needs no model API keys. Start PostgreSQL with `docker compose up -d` before launching.
 
 ```sh
 cp .env.example .env
@@ -35,6 +35,27 @@ npm run desktop
 `npm run dev` runs the same app in a browser at http://127.0.0.1:3000. Backend health is at http://127.0.0.1:8000/healthz and contracts at /openapi.json. The launcher stops child services on Ctrl+C.
 
 The scaffold uses a local session token passed by the Next.js server proxy, not by renderer code. Set your own SESSION_TOKEN in .env for local work. Do not expose this demo as a public multi-user service.
+
+## Local memory workspace
+
+The browser workspace connects to the authenticated backend. Save a neural-signaling goal and
+consent before sending messages. Chats, assistant responses, folders, confirmed voice transcripts,
+extracted attachment text and learning records persist in local PostgreSQL until explicit history
+deletion. Migration 4 removes the old seven-day deadline from existing profiles. Reload does not
+reset saved history. Unsaved composer drafts are temporary.
+
+- Attach TXT, Markdown or text-based PDF, up to 5 MB and 15,000 extracted characters. Review the
+  extracted draft and press Send to save it as a source. Original binary files are not retained.
+- Record up to 30 seconds or upload audio under 1 MB. Explicit session consent sends audio to
+  OpenAI for transcription; review and edit before Send. Loke removes transient validation files
+  and does not save raw audio. Optional browser speech reads committed replies aloud.
+- Chat history loads in pages of 100 messages. Older pages remain available. Folder organization
+  and conversation scopes are persisted. Settings offers explicit history deletion.
+- Study displays the current plan, diagnostic question and recent source excerpts; Activity shows
+  recent evidence and in-app review reminders. Default demo replies are deterministic, not a
+  general-purpose conversational model. Live explanations need OpenRouter configuration.
+
+See [memory MVP acceptance and limits](docs/MEMORY_MVP.md) for the implemented boundary.
 
 ## What works
 

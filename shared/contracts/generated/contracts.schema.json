@@ -130,6 +130,64 @@
       "title": "ApiError",
       "type": "object"
     },
+    "AppCapabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "audio_available": {
+          "title": "Audio Available",
+          "type": "boolean"
+        },
+        "model_mode": {
+          "title": "Model Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "audio_available",
+        "model_mode"
+      ],
+      "title": "AppCapabilities",
+      "type": "object"
+    },
+    "ChatMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "role": {
+          "enum": [
+            "user",
+            "assistant"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "observed_at": {
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "sequence",
+        "role",
+        "text",
+        "observed_at"
+      ],
+      "title": "ChatMessage",
+      "type": "object"
+    },
     "ChatScope": {
       "additionalProperties": false,
       "properties": {
@@ -185,6 +243,119 @@
         }
       },
       "title": "ChatScope",
+      "type": "object"
+    },
+    "ChatSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "generation_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation Id"
+        },
+        "expected_state_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected State Revision"
+        },
+        "expected_plan_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Plan Revision"
+        },
+        "request_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "folder_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Folder Id"
+        }
+      },
+      "required": [
+        "request_id",
+        "id",
+        "title"
+      ],
+      "title": "ChatSettings",
+      "type": "object"
+    },
+    "ChatSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "folder_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Folder Id"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "title": "ChatSummary",
       "type": "object"
     },
     "ClockAdvance": {
@@ -749,6 +920,76 @@
       "title": "EvidenceEvent",
       "type": "object"
     },
+    "FolderInput": {
+      "additionalProperties": false,
+      "properties": {
+        "generation_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation Id"
+        },
+        "expected_state_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected State Revision"
+        },
+        "expected_plan_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Plan Revision"
+        },
+        "request_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "id",
+        "name"
+      ],
+      "title": "FolderInput",
+      "type": "object"
+    },
     "GoalInput": {
       "additionalProperties": false,
       "properties": {
@@ -830,6 +1071,33 @@
         "storage_consent"
       ],
       "title": "GoalInput",
+      "type": "object"
+    },
+    "HistoryPage": {
+      "additionalProperties": false,
+      "properties": {
+        "generation_id": {
+          "title": "Generation Id",
+          "type": "string"
+        },
+        "messages": {
+          "items": {
+            "$ref": "#/$defs/ChatMessage"
+          },
+          "title": "Messages",
+          "type": "array"
+        },
+        "has_more": {
+          "title": "Has More",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "generation_id",
+        "messages",
+        "has_more"
+      ],
+      "title": "HistoryPage",
       "type": "object"
     },
     "JobLease": {
@@ -950,6 +1218,20 @@
           ],
           "title": "Mode",
           "type": "string"
+        },
+        "source_title": {
+          "anyOf": [
+            {
+              "maxLength": 255,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Title"
         }
       },
       "required": [
@@ -1931,6 +2213,85 @@
       ],
       "title": "TranscriptionResult",
       "type": "object"
+    },
+    "UploadPreview": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "filename": {
+          "title": "Filename",
+          "type": "string"
+        },
+        "saved": {
+          "const": false,
+          "default": false,
+          "title": "Saved",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "text",
+        "filename"
+      ],
+      "title": "UploadPreview",
+      "type": "object"
+    },
+    "WorkspaceFolder": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "WorkspaceFolder",
+      "type": "object"
+    },
+    "WorkspaceView": {
+      "additionalProperties": false,
+      "properties": {
+        "generation_id": {
+          "title": "Generation Id",
+          "type": "string"
+        },
+        "chats": {
+          "items": {
+            "$ref": "#/$defs/ChatSummary"
+          },
+          "title": "Chats",
+          "type": "array"
+        },
+        "folders": {
+          "items": {
+            "$ref": "#/$defs/WorkspaceFolder"
+          },
+          "title": "Folders",
+          "type": "array"
+        },
+        "has_more": {
+          "default": false,
+          "title": "Has More",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "generation_id",
+        "chats",
+        "folders"
+      ],
+      "title": "WorkspaceView",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -1964,6 +2325,24 @@
     },
     "error": {
       "$ref": "#/$defs/ApiError"
+    },
+    "workspace": {
+      "$ref": "#/$defs/WorkspaceView"
+    },
+    "history": {
+      "$ref": "#/$defs/HistoryPage"
+    },
+    "upload_preview": {
+      "$ref": "#/$defs/UploadPreview"
+    },
+    "capabilities": {
+      "$ref": "#/$defs/AppCapabilities"
+    },
+    "folder_input": {
+      "$ref": "#/$defs/FolderInput"
+    },
+    "chat_settings": {
+      "$ref": "#/$defs/ChatSettings"
     },
     "operational_action": {
       "$ref": "#/$defs/OperationalAction"
@@ -2001,6 +2380,12 @@
     "proposal",
     "transcription",
     "error",
+    "workspace",
+    "history",
+    "upload_preview",
+    "capabilities",
+    "folder_input",
+    "chat_settings",
     "operational_action",
     "memory_turn",
     "commit_guard",

@@ -161,7 +161,15 @@ def test_http_examples_and_openapi(pg_url, monkeypatch):
             if not path.startswith("/api/"):
                 continue
             for operation in operations.values():
-                expected = "TranscriptionResult" if path.endswith("/transcribe") else "LearningView"
+                expected = {
+                    "/api/audio/transcribe": "TranscriptionResult",
+                    "/api/capabilities": "AppCapabilities",
+                    "/api/workspace": "WorkspaceView",
+                    "/api/workspace/folder": "WorkspaceView",
+                    "/api/workspace/chat": "WorkspaceView",
+                    "/api/chats/history": "HistoryPage",
+                    "/api/attachments/preview": "UploadPreview",
+                }.get(path, "LearningView")
                 success = operation["responses"]["200"]["content"]["application/json"]["schema"]
                 assert success["$ref"] == f"#/components/schemas/{expected}"
                 assert operation["responses"]["409"]["content"]["application/json"]["schema"][

@@ -98,9 +98,10 @@ records and do not copy log/evidence bodies. The root ID stays stable, every log
 assignment, and internal splits preserve equal leaf depth. At the depth cap, overflow stays in
 indexed leaves and maintenance_saturated is exposed. Model processes are not spawned by splitting.
 
-The existing seven-day learner expiry applies to every content tier: raw messages/logs, summaries,
-source documents/graphs, projections, outcomes, nodes/assignments and jobs. Compression does not
-extend retention. Reset/expiry erases these together and retains only a learner key/generation
+Learner content is retained indefinitely by default, including existing profiles upgraded by
+schema version 4. Raw messages/logs, summaries, source documents/graphs and learning records
+survive restart with no automatic deadline. Retry response caches still expire after 24 hours.
+Explicit history reset erases learner content together and retains only a learner key/generation
 marker for the installation lifetime. Marker rows contain no learner content. Old generations and
 leases cannot write into the new history. Provider-side retention is unaffected by local deletion.
 

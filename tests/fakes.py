@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 from copy import deepcopy
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 from loke_contracts.memory import ConflictError, MemoryContext
@@ -42,7 +42,7 @@ class FakeMemory(MemoryPort):
                     state_revision=0,
                     plan_revision=0,
                     demo_clock_hours=0,
-                    expires_at=(datetime.now(UTC) + timedelta(days=7)).isoformat(),
+                    expires_at=None,
                     states={},
                     events=[],
                     sources=[],
@@ -132,5 +132,5 @@ class FakeMemory(MemoryPort):
 
     def expire(self) -> None:
         for learner_id in self.learner_ids():
-            if datetime.fromisoformat(self.records[learner_id]["expires_at"]) <= datetime.now(UTC):
+            if self.records[learner_id]["expires_at"] and datetime.fromisoformat(self.records[learner_id]["expires_at"]) <= datetime.now(UTC):
                 self.delete_learner(learner_id)

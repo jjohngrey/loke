@@ -623,3 +623,20 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+/* Durable input and memory controls share the existing workspace typography. */
+.workspace-status { margin: 8px 24px; padding: 10px 14px; background: #fff4dc; border-radius: 8px; color: #4c3510; }
+.workspace-status button, .draft-provenance button { margin-left: 10px; text-decoration: underline; }
+.setup-panel, .learning-panel { max-width: 760px; width: 100%; padding: 36px; margin: 0 auto; overflow-y: auto; line-height: 1.6; }
+.setup-panel { display: flex; flex-direction: column; gap: 16px; }
+.setup-panel input:not([type=checkbox]), .learning-panel input { border: 1px solid #c7c7c1; background: white; border-radius: 8px; padding: 10px; }
+.setup-panel button, .learning-panel button { border: 1px solid #bbbdb3; border-radius: 8px; padding: 8px 14px; background: #f1f2ec; margin: 8px 0; }
+.learning-panel li { margin: 16px 0; }
+.learning-panel h2 { font-size: 18px; margin-top: 24px; }
+.media-options { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #53564f; padding: 8px 0; }
+.media-options label { display: flex; align-items: flex-start; gap: 7px; }
+.media-options input { margin-top: 3px; }
+.draft-provenance { font-size: 12px; color: #454b3b; padding: 8px 0; }
+.chat-folder-label { margin-left: auto; font-size: 12px; }
+.chat-folder-label select { padding: 5px; border: 1px solid #c7c7c1; border-radius: 6px; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #476c4a; outline-offset: 3px; }

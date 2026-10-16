@@ -62,7 +62,7 @@ class MemorySnapshot(TypedDict):
     state_revision: int
     plan_revision: int
     demo_clock_hours: int
-    expires_at: str
+    expires_at: str | None
     states: dict[str, dict[str, Any]]
     events: list[dict[str, Any]]
     sources: list[dict[str, Any]]

@@ -1,12 +1,16 @@
 const { app, BrowserWindow, shell, session } = require("electron");
+function localOrigin(url) {
+  try {
+    return new URL(url).origin === "http://127.0.0.1:3000";
+  } catch {
+    return false;
+  }
+}
 const allowedResources = new Set(["nba.uth.tmc.edu"]);
 app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler(
     (webContents, permission, callback) => {
-      callback(
-        webContents.getURL().startsWith("http://127.0.0.1:3000") &&
-          permission === "media",
-      );
+      callback(localOrigin(webContents.getURL()) && permission === "media");
     },
   );
   const window = new BrowserWindow({
@@ -32,7 +36,7 @@ app.whenReady().then(() => {
     return { action: "deny" };
   });
   window.webContents.on("will-navigate", (event, url) => {
-    if (!url.startsWith("http://127.0.0.1:3000/")) event.preventDefault();
+    if (!localOrigin(url)) event.preventDefault();
   });
   window.loadURL("http://127.0.0.1:3000");
 });

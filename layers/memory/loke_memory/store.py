@@ -66,7 +66,7 @@ class Store(TieredMemory):
             agent_id=None, response="Set one learning goal to begin.", active_card_id=None,
             assisted_concepts=[], state_revision=0, plan_revision=0, generation_id=generation,
             graph_version=None, demo_clock_hours=0,
-            expires_at=(datetime.now(UTC) + timedelta(days=7)).isoformat())
+            expires_at=None)
 
     def _records(self, conn, table, learner_id):
         return list(conn.execute(select(table.c.data).where(
@@ -85,6 +85,44 @@ class Store(TieredMemory):
             db.jobs.c.learner_id == learner_id, db.jobs.c.kind == "review"
         ).order_by(db.jobs.c.due_at, db.jobs.c.key)).scalars())
         return result
+
+    def workspace(self, learner_id, offset=0, limit=100):
+        from .tiered_tables import messages
+        with self.engine.begin() as conn:
+            generation = self._lock(conn, learner_id)
+            profile = self._profile(conn, learner_id, generation)
+            metadata = profile.get("workspace_chats", {})
+            first = select(messages.c.chat_id, func.min(messages.c.sequence).label("first"), func.max(messages.c.observed_at).label("latest")).where(
+                messages.c.learner_id == learner_id, messages.c.generation_id == generation
+            ).group_by(messages.c.chat_id).subquery()
+            rows = conn.execute(select(messages).join(first,
+                (messages.c.chat_id == first.c.chat_id) & (messages.c.sequence == first.c.first)
+            ).where(messages.c.learner_id == learner_id, messages.c.generation_id == generation)
+                .order_by(first.c.latest.desc(), messages.c.chat_id).offset(offset).limit(limit + 1)).mappings().all()
+            chats = []
+            for row in rows[:limit]:
+                data = row["data"]
+                meta = metadata.get(row["chat_id"], {})
+                chats.append(dict(id=row["chat_id"], title=meta.get("title", data["text"][:80]),
+                    folder_id=meta.get("folder_id")))
+            return dict(generation_id=generation, chats=chats,
+                folders=profile.get("workspace_folders", []), has_more=len(rows) > limit)
+
+    def chat_history(self, learner_id, chat_id, generation_id, before=None, limit=100):
+        from .tiered_tables import messages
+        with self.engine.begin() as conn:
+            generation = self._lock(conn, learner_id)
+            if generation != generation_id:
+                raise ConflictError("Learning history was reset. Reload before reading.")
+            query = select(messages).where(messages.c.learner_id == learner_id,
+                messages.c.generation_id == generation, messages.c.chat_id == chat_id)
+            if before is not None:
+                query = query.where(messages.c.sequence < before)
+            rows = conn.execute(query.order_by(messages.c.sequence.desc()).limit(limit + 1)).mappings().all()
+            return dict(generation_id=generation, has_more=len(rows) > limit,
+                messages=[dict(id=row["key"], sequence=row["sequence"], role=row["data"]["role"],
+                    text=row["data"]["text"], observed_at=row["observed_at"])
+                    for row in reversed(rows[:limit])])
 
     def snapshot(self, learner_id):
         with self.engine.begin() as conn:
@@ -163,9 +201,9 @@ class Store(TieredMemory):
                     db.corrections.c.learner_id == learner_id)).scalar_one(), version="projection-after-v1")
         profile = {k: v for k, v in current.items() if k not in exclude}
         statement = pg_insert(db.learners).values(learner_id=learner_id, generation_id=generation,
-            revision=current["state_revision"], data=profile, expires_at=utc(current["expires_at"]))
+            revision=current["state_revision"], data=profile, expires_at=utc(current["expires_at"]) if current["expires_at"] else None)
         conn.execute(statement.on_conflict_do_update(index_elements=[db.learners.c.learner_id],
-            set_=dict(data=profile, revision=current["state_revision"], expires_at=utc(current["expires_at"]))))
+            set_=dict(data=profile, revision=current["state_revision"], expires_at=utc(current["expires_at"]) if current["expires_at"] else None)))
         sequence = conn.execute(select(func.max(db.events.c.sequence)).where(
             db.events.c.learner_id == learner_id)).scalar() or 0
         for event in current["events"]:

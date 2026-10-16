@@ -27,15 +27,17 @@ from .openrouter import propose
 
 
 def fingerprint(payload) -> str:
-    return hashlib.sha256(payload.model_dump_json().encode()).hexdigest()
+    return hashlib.sha256(payload.model_dump_json(exclude={"source_title"} if getattr(payload, "source_title", None) is None else None).encode()).hexdigest()
 
 
 def legacy_fingerprint(payload):
     """Only used for the bounded retry window when upgrading original scaffold outcomes."""
+    if getattr(payload, "source_title", None) is not None:
+        return None
     if payload.scope != ChatScope() or any(getattr(payload, name, None) is not None
                                           for name in ("generation_id", "expected_state_revision", "expected_plan_revision")):
         return None
-    value = payload.model_dump(mode="json", exclude={"scope", "generation_id", "expected_state_revision", "expected_plan_revision"})
+    value = payload.model_dump(mode="json", exclude={"scope", "generation_id", "expected_state_revision", "expected_plan_revision", "source_title"})
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
 
 
@@ -231,7 +233,7 @@ class Coordinator:
                 chunks = [payload.text[i : i + 1200] for i in range(0, len(payload.text), 1200)]
                 s["sources"] = [c for c in s["sources"] if not c["source_id"].startswith(source_id)]
                 s["sources"].extend(
-                    dict(source_id=f"{source_id}:{i}", title="Your study note", text=chunk)
+                    dict(source_id=f"{source_id}:{i}", title=payload.source_title or "Your study note", text=chunk)
                     for i, chunk in enumerate(chunks)
                 )
             s["response"] = explanation
