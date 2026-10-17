@@ -162,13 +162,19 @@ def test_http_examples_and_openapi(pg_url, monkeypatch):
                 continue
             for operation in operations.values():
                 if path == "/api/runtime/run":
-                    content = operation["responses"]["200"]["content"]
-                    assert set(content) == {"application/x-ndjson"}
+                    assert set(operation["responses"]["200"]["content"]) == {"application/x-ndjson"}
                     continue
                 expected = {
                     "/api/runtime/cancel": "RuntimeCancelResult",
                     "/api/runtime/reset": "RuntimeResetResult",
-                }.get(path, "TranscriptionResult" if path.endswith("/transcribe") else "LearningView")
+                    "/api/audio/transcribe": "TranscriptionResult",
+                    "/api/capabilities": "AppCapabilities",
+                    "/api/workspace": "WorkspaceView",
+                    "/api/workspace/folder": "WorkspaceView",
+                    "/api/workspace/chat": "WorkspaceView",
+                    "/api/chats/history": "HistoryPage",
+                    "/api/attachments/preview": "UploadPreview",
+                }.get(path, "LearningView")
                 success = operation["responses"]["200"]["content"]["application/json"]["schema"]
                 assert success["$ref"] == f"#/components/schemas/{expected}"
                 assert operation["responses"]["409"]["content"]["application/json"]["schema"][

@@ -7,7 +7,7 @@ import logging
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Callable, Protocol
+from typing import Awaitable, Callable, Protocol
 from uuid import uuid4
 
 from loke_contracts.runtime import (
@@ -85,6 +85,7 @@ class Run:
     outcome: RunOutcome | None = None
     task: asyncio.Task | None = None
     cancelled: bool = False
+    on_completed: Callable[[RunOutcome], Awaitable[None]] | None = None
 
     def publish(self, event_type, **fields):
         self.events.append(RunEvent(
@@ -165,7 +166,7 @@ class AgentRuntime:
         self.limits = limits or RunLimits()
         self.instructions = instructions
 
-    def reserve(self, owner: str, request: RuntimeRequest):
+    def reserve(self, owner: str, request: RuntimeRequest, on_completed=None):
         session = self.store.session(owner, request.session_id)
         if session.epoch != request.session_epoch:
             raise RuntimeConflict("Chat was reset. Use the current session epoch.")
@@ -179,7 +180,7 @@ class AgentRuntime:
         active = sum(run.outcome is None for run in session.runs.values())
         if active >= getattr(self.store, "max_active", 8):
             raise RuntimeCapacity("Too many pending turns in this chat.")
-        run = Run(request, fingerprint, session.epoch, self.limits.model_copy(deep=True))
+        run = Run(request, fingerprint, session.epoch, self.limits.model_copy(deep=True), on_completed=on_completed)
         session.runs[key] = run
         run.publish("progress", message="Queued")
         run.task = asyncio.create_task(self._execute(session, run))
@@ -421,11 +422,20 @@ class AgentRuntime:
                 groups.append([{"role": "assistant", "content": text}])
             session.conversation = groups
         run.usage.elapsed_ms = int((time.monotonic() - started) * 1000)
-        run.status = status
-        run.outcome = RunOutcome(
+        outcome = RunOutcome(
             run_id=run.run_id, request_id=run.request.request_id, session_epoch=run.session_epoch,
             status=status, reason=reason, text=text, elements=list(elements.values()), usage=run.usage,
         )
+        if outcome.status == "completed" and run.on_completed:
+            try:
+                await run.on_completed(outcome)
+            except asyncio.CancelledError:
+                outcome = outcome.model_copy(update={"status": "cancelled", "reason": "cancelled"})
+            except Exception:
+                outcome = outcome.model_copy(update={"status": "failed", "reason": "memory_commit_failed",
+                    "text": outcome.text + "\n\nThis response could not be saved. Reload before trying again."})
+        run.status = outcome.status
+        run.outcome = outcome
         run.publish("outcome", outcome=run.outcome)
         self.store.retain(session)
         logger.info("runtime run=%s request=%s epoch=%s status=%s reason=%s usage=%s",

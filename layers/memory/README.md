@@ -22,7 +22,7 @@ No project/folder editor or external account integration is added by C.
 
 Conversation messages and committed action logs are recorded atomically with a goal/input/answer.
 Provider attempts/results are separately logged as operational actions, never learning evidence.
-Raw logs survive summarization and restart until the learner's existing seven-day retention deadline.
+Raw logs survive summarization and restart until the learner explicitly deletes their history. Profiles have no automatic expiry.
 Earlier complete conversations cannot be reconstructed because the scaffold never stored them.
 
 Every 15 minutes, durable leased maintenance compacts older interactions and splits oversized log

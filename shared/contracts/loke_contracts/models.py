@@ -67,6 +67,7 @@ class LearningInput(WriteRequest):
     request_id: str = Field(min_length=1, max_length=100)
     text: str = Field(min_length=1, max_length=15000)
     mode: Literal["text", "voice", "attachment"] = "text"
+    source_title: str | None = Field(default=None, min_length=1, max_length=255)
 
 
 class AnswerInput(WriteRequest):
@@ -181,6 +182,63 @@ class LearningView(Contract):
     sources: list[SourceChunk]
 
 
+class FolderInput(WriteRequest):
+    request_id: str = Field(min_length=1, max_length=100)
+    id: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=1, max_length=100)
+
+
+class WorkspaceFolder(Contract):
+    id: str
+    name: str
+
+
+class ChatSettings(WriteRequest):
+    request_id: str = Field(min_length=1, max_length=100)
+    id: str = Field(min_length=1, max_length=100)
+    title: str = Field(min_length=1, max_length=100)
+    folder_id: str | None = None
+
+
+class ChatSummary(Contract):
+    id: str
+    title: str
+    folder_id: str | None = None
+
+
+class WorkspaceView(Contract):
+    state_revision: int
+    generation_id: str
+    chats: list[ChatSummary]
+    folders: list[WorkspaceFolder]
+    has_more: bool = False
+
+
+class ChatMessage(Contract):
+    id: str
+    sequence: int
+    role: Literal["user", "assistant"]
+    text: str
+    observed_at: datetime
+
+
+class HistoryPage(Contract):
+    generation_id: str
+    messages: list[ChatMessage]
+    has_more: bool
+
+
+class UploadPreview(Contract):
+    text: str
+    filename: str
+    saved: Literal[False] = False
+
+
+class AppCapabilities(Contract):
+    audio_available: bool
+    model_mode: str
+
+
 class TopicProposal(Contract):
     concept_id: str | None
     explanation: str = Field(max_length=800)
@@ -213,3 +271,9 @@ class ContractBundle(Contract):
     proposal: TopicProposal
     transcription: TranscriptionResult
     error: ApiError
+    workspace: WorkspaceView
+    history: HistoryPage
+    upload_preview: UploadPreview
+    capabilities: AppCapabilities
+    folder_input: FolderInput
+    chat_settings: ChatSettings

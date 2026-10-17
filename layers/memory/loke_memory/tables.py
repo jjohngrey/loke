@@ -25,7 +25,7 @@ learners = Table("memory_learners", metadata,
     Column("learner_id", String, ForeignKey("memory_generations.learner_id"), primary_key=True),
     Column("generation_id", String, nullable=False),
     Column("revision", Integer, nullable=False),
-    Column("expires_at", DateTime(timezone=True), nullable=False, index=True),
+    Column("expires_at", DateTime(timezone=True), nullable=True, index=True),
     Column("data", JSON, nullable=False),
     UniqueConstraint("learner_id", "generation_id"))
 

@@ -16,7 +16,7 @@ yet wired to the HTTP coordinator; the audited application gaps below still desc
 Source-scoped graph discovery is now available independently of the catalog: see
 [source-graph pipeline and examples](../../docs/SOURCE_GRAPH_DISCOVERY.md). It preserves exact
 citations and labels inferred prerequisites, with an optional model adapter and offline demo.
-PDF/text upload, graph persistence and the learner UI remain integration work.
+PDF/text attachment preview is now exposed through HTTP and the learner UI. Graph discovery remains a separate source-bound workflow. See docs/MEMORY_MVP.md for current acceptance and limits.
 
 Standalone hybrid graph orchestration now composes the source planner with optional model routing,
 bounded graph workers and caller-owned specialist snapshots. See
@@ -41,7 +41,7 @@ Shared root files/tests need coordinated narrow edits. Any domain conflict excep
 
 ## Audited baseline and gaps
 
-Current implementation supports demo-mode goal/input/answer, a stable stored subject agent ID, deterministic three-step planning, source chunks, atomic snapshot mutation, deduplicated goal/input/answer outcomes, bounded live proposal, audio transcription and single-worker durable reminders. It uses SQLite by default; PostgreSQL has configuration but must be verified independently. No provider credentials are required for the core loop.
+Current implementation supports demo-mode goal/input/answer, a stable stored subject agent ID, deterministic three-step planning, source chunks, atomic snapshot mutation, deduplicated goal/input/answer outcomes, bounded live proposal, audio transcription and single-worker durable reminders. It requires PostgreSQL; SQLite URLs are rejected. No provider credentials are required for the core loop.
 
 The code does not yet implement several specification promises:
 

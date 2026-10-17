@@ -42,6 +42,7 @@ export type ExpectedPlanRevision1 = number | null;
 export type RequestId1 = string;
 export type Text = string;
 export type Mode = "text" | "voice" | "attachment";
+export type SourceTitle = string | null;
 export type GenerationId2 = string | null;
 export type ExpectedStateRevision2 = number | null;
 export type ExpectedPlanRevision2 = number | null;
@@ -154,6 +155,42 @@ export type Text4 = string;
 export type Provenance = "audio_transcription";
 export type Saved = false;
 export type Detail = string;
+export type StateRevision2 = number;
+export type GenerationId8 = string;
+export type Id4 = string;
+export type Title3 = string;
+export type FolderId = string | null;
+export type Chats = ChatSummary[];
+export type Id5 = string;
+export type Name = string;
+export type Folders = WorkspaceFolder[];
+export type HasMore = boolean;
+export type GenerationId9 = string;
+export type Id6 = string;
+export type Sequence = number;
+export type Role1 = "user" | "assistant";
+export type Text5 = string;
+export type ObservedAt1 = string;
+export type Messages = ChatMessage[];
+export type HasMore1 = boolean;
+export type Text6 = string;
+export type Filename = string;
+export type Saved1 = false;
+export type AudioAvailable = boolean;
+export type ModelMode1 = string;
+export type GenerationId10 = string | null;
+export type ExpectedStateRevision5 = number | null;
+export type ExpectedPlanRevision5 = number | null;
+export type RequestId5 = string;
+export type Id7 = string;
+export type Name1 = string;
+export type GenerationId11 = string | null;
+export type ExpectedStateRevision6 = number | null;
+export type ExpectedPlanRevision6 = number | null;
+export type RequestId6 = string;
+export type Id8 = string;
+export type Title4 = string;
+export type FolderId1 = string | null;
 export type Operation = string;
 export type Status1 = "started" | "succeeded" | "failed" | "cancelled" | "committed";
 export type ToolName = string | null;
@@ -182,30 +219,30 @@ export type MatchedAgentIds1 =
   | [string, string, string]
   | [string, string, string, string]
   | [string, string, string, string, string];
-export type GenerationId8 = string;
-export type StateRevision2 = number | null;
+export type GenerationId12 = string;
+export type StateRevision3 = number | null;
 export type PlanRevision2 = number | null;
 export type GraphVersion2 = string | null;
-export type Id4 = string;
+export type Id9 = string;
 export type LearnerId2 = string;
-export type GenerationId9 = string;
+export type GenerationId13 = string;
 export type Kind4 = string;
 export type Token = string;
 export type Owner = string;
 export type ExpiresAt = string;
-export type Id5 = string;
-export type Title3 = string;
+export type Id10 = string;
+export type Title5 = string;
 export type Kind5 = "text" | "markdown" | "pdf";
 export type ContentHash = string;
 export type Number = number;
-export type Text5 = string;
+export type Text7 = string;
 export type Pages = SourcePage[];
-export type Id6 = string;
+export type Id11 = string;
 export type Page = number;
 export type Section = string | null;
 export type Start = number;
 export type End = number;
-export type Text6 = string;
+export type Text8 = string;
 export type Passages = SourcePassage[];
 export type TextlessPages = number[];
 export type Version = "source-graph-v1";
@@ -215,12 +252,12 @@ export type ContentHash1 = string;
 export type SourceOnly = true;
 export type Status2 = "ready" | "needs_clarification" | "insufficient_source" | "no_concepts";
 export type Origin = "patterns" | "model" | "fallback";
-export type Id7 = string;
+export type Id12 = string;
 export type Label1 = string;
 export type Aliases1 = string[];
 export type CitationIds = string[];
 export type Concepts2 = DiscoveredConcept[];
-export type Id8 = string;
+export type Id13 = string;
 export type FromId = string;
 export type ToId = string;
 export type Kind6 = "prerequisite_of" | "related_to" | "part_of" | "supports";
@@ -230,7 +267,7 @@ export type CitationIds1 = string[];
 export type Usable = boolean;
 export type HeldReason = ("cycle" | "self_relation") | null;
 export type Relations = DiscoveredRelation[];
-export type Id9 = string;
+export type Id14 = string;
 export type DocumentId1 = string;
 export type PassageId = string;
 export type Page1 = number;
@@ -244,13 +281,18 @@ export type InspectedPassageIds = string[];
 export type OmittedPassageIds = string[];
 export type Clarification = string | null;
 export type Warnings = string[];
+export type GenerationId14 = string | null;
+export type InputMode = "text" | "voice" | "attachment";
+export type SourceTitle1 = string | null;
 export type SessionId = string;
 export type SessionEpoch = number;
-export type RequestId5 = string;
-export type Text7 = string;
+export type RequestId7 = string;
+export type Text9 = string;
+export type GenerationId15 = string | null;
 export type SessionId1 = string;
 export type SessionEpoch1 = number;
-export type RequestId6 = string;
+export type RequestId8 = string;
+export type GenerationId16 = string | null;
 export type SessionId2 = string;
 export type SessionEpoch2 = number;
 export type SessionId3 = string;
@@ -266,9 +308,9 @@ export type OutputChars = number;
 export type ResultChars = number;
 export type MaxFailures = number;
 export type RunId1 = string;
-export type RequestId7 = string;
+export type RequestId9 = string;
 export type SessionEpoch4 = number;
-export type Sequence = number;
+export type Sequence1 = number;
 export type Type = "progress" | "message_delta" | "element" | "outcome";
 export type CallId = string | null;
 export type Message = string | null;
@@ -279,15 +321,15 @@ export type Question = string;
  */
 export type Choices =
   [Choice, Choice, Choice] | [Choice, Choice, Choice, Choice] | [Choice, Choice, Choice, Choice, Choice];
-export type Id10 = string;
-export type Text8 = string;
+export type Id15 = string;
+export type Text10 = string;
 export type Type1 = "multiple_choice";
 export type ElementId = string;
 export type RunId2 = string;
-export type RequestId8 = string;
+export type RequestId10 = string;
 export type SessionEpoch5 = number;
 export type Status4 = "completed" | "failed" | "cancelled";
-export type Text9 = string;
+export type Text11 = string;
 export type Elements = MultipleChoiceElement[];
 export type Reason1 = string | null;
 export type ModelCalls1 = number;
@@ -307,6 +349,12 @@ export interface PublishedContracts {
   proposal: TopicProposal;
   transcription: TranscriptionResult;
   error: ApiError;
+  workspace: WorkspaceView;
+  history: HistoryPage;
+  upload_preview: UploadPreview;
+  capabilities: AppCapabilities;
+  folder_input: FolderInput;
+  chat_settings: ChatSettings;
   operational_action: OperationalAction;
   memory_turn: MemoryTurn;
   commit_guard: CommitGuard;
@@ -350,6 +398,7 @@ export interface LearningInput {
   request_id: RequestId1;
   text: Text;
   mode?: Mode;
+  source_title?: SourceTitle;
 }
 export interface AnswerInput {
   generation_id?: GenerationId2;
@@ -507,6 +556,60 @@ export interface TranscriptionResult {
 export interface ApiError {
   detail: Detail;
 }
+export interface WorkspaceView {
+  state_revision: StateRevision2;
+  generation_id: GenerationId8;
+  chats: Chats;
+  folders: Folders;
+  has_more?: HasMore;
+}
+export interface ChatSummary {
+  id: Id4;
+  title: Title3;
+  folder_id?: FolderId;
+}
+export interface WorkspaceFolder {
+  id: Id5;
+  name: Name;
+}
+export interface HistoryPage {
+  generation_id: GenerationId9;
+  messages: Messages;
+  has_more: HasMore1;
+}
+export interface ChatMessage {
+  id: Id6;
+  sequence: Sequence;
+  role: Role1;
+  text: Text5;
+  observed_at: ObservedAt1;
+}
+export interface UploadPreview {
+  text: Text6;
+  filename: Filename;
+  saved?: Saved1;
+}
+export interface AppCapabilities {
+  audio_available: AudioAvailable;
+  model_mode: ModelMode1;
+}
+export interface FolderInput {
+  generation_id?: GenerationId10;
+  expected_state_revision?: ExpectedStateRevision5;
+  expected_plan_revision?: ExpectedPlanRevision5;
+  request_id: RequestId5;
+  id: Id7;
+  name: Name1;
+}
+export interface ChatSettings {
+  generation_id?: GenerationId11;
+  expected_state_revision?: ExpectedStateRevision6;
+  expected_plan_revision?: ExpectedPlanRevision6;
+  request_id: RequestId6;
+  id: Id8;
+  title: Title4;
+  folder_id?: FolderId1;
+}
 export interface OperationalAction {
   operation?: Operation;
   status?: Status1;
@@ -523,15 +626,15 @@ export interface MemoryTurn {
   matched_agent_ids?: MatchedAgentIds1;
 }
 export interface CommitGuard {
-  generation_id: GenerationId8;
-  state_revision?: StateRevision2;
+  generation_id: GenerationId12;
+  state_revision?: StateRevision3;
   plan_revision?: PlanRevision2;
   graph_version?: GraphVersion2;
 }
 export interface JobLease {
-  id: Id4;
+  id: Id9;
   learner_id: LearnerId2;
-  generation_id: GenerationId9;
+  generation_id: GenerationId13;
   kind: Kind4;
   token: Token;
   owner: Owner;
@@ -542,8 +645,8 @@ export interface Payload {
   [k: string]: unknown;
 }
 export interface SourceDocument {
-  id: Id5;
-  title: Title3;
+  id: Id10;
+  title: Title5;
   kind: Kind5;
   content_hash: ContentHash;
   pages: Pages;
@@ -552,15 +655,15 @@ export interface SourceDocument {
 }
 export interface SourcePage {
   number: Number;
-  text: Text5;
+  text: Text7;
 }
 export interface SourcePassage {
-  id: Id6;
+  id: Id11;
   page: Page;
   section: Section;
   start: Start;
   end: End;
-  text: Text6;
+  text: Text8;
 }
 export interface SourceGraph {
   version?: Version;
@@ -580,13 +683,13 @@ export interface SourceGraph {
   warnings?: Warnings;
 }
 export interface DiscoveredConcept {
-  id: Id7;
+  id: Id12;
   label: Label1;
   aliases: Aliases1;
   citation_ids: CitationIds;
 }
 export interface DiscoveredRelation {
-  id: Id8;
+  id: Id13;
   from_id: FromId;
   to_id: ToId;
   kind: Kind6;
@@ -597,7 +700,7 @@ export interface DiscoveredRelation {
   held_reason?: HeldReason;
 }
 export interface SourceCitation {
-  id: Id9;
+  id: Id14;
   document_id: DocumentId1;
   passage_id: PassageId;
   page: Page1;
@@ -607,17 +710,23 @@ export interface SourceCitation {
   quote: Quote;
 }
 export interface RuntimeRequest {
+  memory_scope?: ChatScope | null;
+  generation_id?: GenerationId14;
+  input_mode?: InputMode;
+  source_title?: SourceTitle1;
   session_id: SessionId;
   session_epoch?: SessionEpoch;
-  request_id: RequestId5;
-  text: Text7;
+  request_id: RequestId7;
+  text: Text9;
 }
 export interface RuntimeControl {
+  generation_id?: GenerationId15;
   session_id: SessionId1;
   session_epoch: SessionEpoch1;
-  request_id: RequestId6;
+  request_id: RequestId8;
 }
 export interface RuntimeReset {
+  generation_id?: GenerationId16;
   session_id: SessionId2;
   session_epoch: SessionEpoch2;
 }
@@ -641,9 +750,9 @@ export interface RunLimits {
 }
 export interface RunEvent {
   run_id: RunId1;
-  request_id: RequestId7;
+  request_id: RequestId9;
   session_epoch: SessionEpoch4;
-  sequence: Sequence;
+  sequence: Sequence1;
   type: Type;
   call_id?: CallId;
   message?: Message;
@@ -657,15 +766,15 @@ export interface MultipleChoiceElement {
   element_id: ElementId;
 }
 export interface Choice {
-  id: Id10;
-  text: Text8;
+  id: Id15;
+  text: Text10;
 }
 export interface RunOutcome {
   run_id: RunId2;
-  request_id: RequestId8;
+  request_id: RequestId10;
   session_epoch: SessionEpoch5;
   status: Status4;
-  text: Text9;
+  text: Text11;
   elements?: Elements;
   reason?: Reason1;
   usage: RunUsage;

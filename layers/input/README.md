@@ -1,5 +1,9 @@
 # A: input and experience implementation handoff
 
+Current browser workspace implementation and acceptance: [MEMORY_MVP.md](../../docs/MEMORY_MVP.md).
+The earlier handoff below describes the original scaffold and future learning lifecycle work.
+The current workspace replaces sample-only chat state with server history, folders, attachments and voice drafts.
+
 ## Your persona and outcome
 
 Act as the frontend and desktop experience owner. Build a clear, accessible learning workspace that submits typed learner actions and renders committed backend decisions. Own interaction design, recording, attachments, error recovery and Electron boundaries. Do not implement a second grader, planner, scheduler or learner database in the client.

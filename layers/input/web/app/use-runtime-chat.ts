@@ -2,7 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { RuntimeRequest, RuntimeResetResult } from "@loke/contracts";
-import { applyRunEvent, emptyDisplay, readRunEvents, type RuntimeDisplay } from "./runtime-client";
+import {
+  applyRunEvent,
+  emptyDisplay,
+  readRunEvents,
+  type RuntimeDisplay,
+} from "./runtime-client";
 
 type ChatRun = {
   request: RuntimeRequest;
@@ -16,17 +21,29 @@ type ChatRun = {
 
 async function post(path: string, payload: unknown, signal?: AbortSignal) {
   const response = await fetch(`/api/backend/runtime/${path}`, {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload), signal,
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+    signal,
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(typeof body.detail === "string" ? body.detail : "The chat request could not be processed.");
+    throw new Error(
+      typeof body.detail === "string"
+        ? body.detail
+        : "The chat request could not be processed.",
+    );
   }
   return response;
 }
 
-export function useRuntimeChat(onDisplay: (chatId: string, requestId: string, display: RuntimeDisplay) => void) {
+export function useRuntimeChat(
+  onDisplay: (
+    chatId: string,
+    requestId: string,
+    display: RuntimeDisplay,
+  ) => void,
+) {
   const [runs, setRuns] = useState<Record<string, ChatRun>>({});
   const records = useRef<Record<string, ChatRun>>({});
   const sessions = useRef<Record<string, { id: string; epoch: number }>>({});
@@ -39,9 +56,11 @@ export function useRuntimeChat(onDisplay: (chatId: string, requestId: string, di
   }
 
   function isCurrent(chatId: string, record: ChatRun) {
-    return records.current[chatId] === record &&
+    return (
+      records.current[chatId] === record &&
       sessions.current[chatId]?.id === record.request.session_id &&
-      sessions.current[chatId]?.epoch === record.request.session_epoch;
+      sessions.current[chatId]?.epoch === record.request.session_epoch
+    );
   }
 
   async function connect(chatId: string, record: ChatRun) {
@@ -50,33 +69,72 @@ export function useRuntimeChat(onDisplay: (chatId: string, requestId: string, di
     record.error = undefined;
     update(chatId, record);
     try {
-      const response = await post("run", record.request, record.controller.signal);
+      const response = await post(
+        "run",
+        record.request,
+        record.controller.signal,
+      );
       await readRunEvents(response, (event) => {
-        if (!isCurrent(chatId, record) || event.session_epoch !== record.request.session_epoch ||
-            event.request_id !== record.request.request_id) return;
+        if (
+          !isCurrent(chatId, record) ||
+          event.session_epoch !== record.request.session_epoch ||
+          event.request_id !== record.request.request_id
+        )
+          return;
         record.display = applyRunEvent(record.display, event);
-        if (record.cancelRequested && !record.cancellationSent && !record.display.outcome)
+        if (
+          record.cancelRequested &&
+          !record.cancellationSent &&
+          !record.display.outcome
+        )
           void cancel(chatId);
         listener.current(chatId, record.request.request_id, record.display);
         if (record.display.outcome) record.phase = "idle";
         update(chatId, record);
       });
       if (isCurrent(chatId, record) && !record.display.outcome)
-        throw new Error("Connection lost. Retry to reconnect to this response.");
+        throw new Error(
+          "Connection lost. Retry to reconnect to this response.",
+        );
     } catch (error) {
       if (!isCurrent(chatId, record)) return;
       record.phase = "offline";
-      record.error = error instanceof Error ? error.message : "Connection lost. Retry this response.";
+      record.error =
+        error instanceof Error
+          ? error.message
+          : "Connection lost. Retry this response.";
       update(chatId, record);
     }
   }
 
-  function submit(chatId: string, text: string) {
-    if (["running", "offline", "resetting"].includes(records.current[chatId]?.phase)) return false;
-    const session = sessions.current[chatId] ||= { id: crypto.randomUUID(), epoch: 0 };
+  function submit(
+    chatId: string,
+    text: string,
+    memory?: Pick<
+      RuntimeRequest,
+      "memory_scope" | "generation_id" | "input_mode" | "source_title"
+    >,
+  ) {
+    if (
+      ["running", "offline", "resetting"].includes(
+        records.current[chatId]?.phase,
+      )
+    )
+      return false;
+    const session = (sessions.current[chatId] ||= {
+      id: crypto.randomUUID(),
+      epoch: 0,
+    });
     const record: ChatRun = {
-      request: { session_id: session.id, session_epoch: session.epoch, request_id: crypto.randomUUID(), text },
-      display: emptyDisplay(), phase: "running",
+      request: {
+        ...memory,
+        session_id: session.id,
+        session_epoch: session.epoch,
+        request_id: crypto.randomUUID(),
+        text,
+      },
+      display: emptyDisplay(),
+      phase: "running",
     };
     void connect(chatId, record);
     return true;
@@ -84,7 +142,8 @@ export function useRuntimeChat(onDisplay: (chatId: string, requestId: string, di
 
   async function cancel(chatId: string) {
     const record = records.current[chatId];
-    if (!record || record.phase === "idle" || record.phase === "resetting") return;
+    if (!record || record.phase === "idle" || record.phase === "resetting")
+      return;
     record.cancelRequested = true;
     // Wait for reservation acknowledgement so Stop cannot race ahead of the run request.
     if (!record.display.runId) {
@@ -94,19 +153,28 @@ export function useRuntimeChat(onDisplay: (chatId: string, requestId: string, di
     record.cancellationSent = true;
     try {
       await post("cancel", control(record.request));
-      if (isCurrent(chatId, record) && record.phase === "offline") void connect(chatId, record);
+      if (isCurrent(chatId, record) && record.phase === "offline")
+        void connect(chatId, record);
     } catch (error) {
       if (isCurrent(chatId, record)) {
         record.cancellationSent = false;
-        record.error = error instanceof Error ? error.message : "Cancellation failed. Retry.";
+        record.error =
+          error instanceof Error
+            ? error.message
+            : "Cancellation failed. Retry.";
         update(chatId, record);
       }
     }
   }
 
   function control(request: RuntimeRequest) {
-    const { text: _text, ...payload } = request;
-    return payload;
+    const { session_id, session_epoch, request_id, generation_id } = request;
+    return {
+      session_id,
+      session_epoch,
+      request_id,
+      ...(generation_id ? { generation_id } : {}),
+    };
   }
 
   async function reset(chatId: string): Promise<boolean> {
@@ -122,8 +190,14 @@ export function useRuntimeChat(onDisplay: (chatId: string, requestId: string, di
       update(chatId, { ...record, phase: "resetting", error: undefined });
     }
     try {
-      const response = await post("reset", { session_id: session.id, session_epoch: priorEpoch });
-      const result = await response.json() as RuntimeResetResult;
+      const response = await post("reset", {
+        session_id: session.id,
+        session_epoch: priorEpoch,
+        ...(record?.request.generation_id
+          ? { generation_id: record.request.generation_id }
+          : {}),
+      });
+      const result = (await response.json()) as RuntimeResetResult;
       session.epoch = result.session_epoch;
       delete records.current[chatId];
       setRuns((items) => {
@@ -137,8 +211,13 @@ export function useRuntimeChat(onDisplay: (chatId: string, requestId: string, di
       sessions.current[chatId] = { id: crypto.randomUUID(), epoch: 0 };
       if (record) {
         void post("cancel", control(record.request)).catch(() => {});
-        update(chatId, { ...record, phase: "idle", controller: undefined,
-          error: "The previous reset could not be confirmed. A new chat session has started." });
+        update(chatId, {
+          ...record,
+          phase: "idle",
+          controller: undefined,
+          error:
+            "The previous reset could not be confirmed. A new chat session has started.",
+        });
       }
       return true;
     }
@@ -149,18 +228,23 @@ export function useRuntimeChat(onDisplay: (chatId: string, requestId: string, di
     if (record?.phase === "offline") void connect(chatId, record);
   }
 
-  useEffect(() => () => {
-    for (const record of Object.values(records.current)) {
-      record.controller?.abort();
-      if (record.phase === "running" || record.phase === "offline") {
-        void fetch("/api/backend/runtime/cancel", {
-          method: "POST", headers: { "content-type": "application/json" }, keepalive: true,
-          body: JSON.stringify(control(record.request)),
-        }).catch(() => {});
+  useEffect(
+    () => () => {
+      for (const record of Object.values(records.current)) {
+        record.controller?.abort();
+        if (record.phase === "running" || record.phase === "offline") {
+          void fetch("/api/backend/runtime/cancel", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            keepalive: true,
+            body: JSON.stringify(control(record.request)),
+          }).catch(() => {});
+        }
       }
-    }
-    records.current = {};
-  }, []);
+      records.current = {};
+    },
+    [],
+  );
 
   return { runs, submit, retry, cancel, reset };
 }

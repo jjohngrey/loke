@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from .models import Contract
+from .models import ChatScope, Contract
 
 
 class RuntimeContract(Contract):
@@ -51,10 +51,14 @@ class MultipleChoiceOutput(RuntimeContract):
 
 
 class RuntimeRequest(RuntimeContract):
+    memory_scope: ChatScope | None = None
+    generation_id: str | None = Field(default=None, min_length=1, max_length=100)
+    input_mode: Literal["text", "voice", "attachment"] = "text"
+    source_title: str | None = Field(default=None, max_length=255)
     session_id: str = Field(min_length=1, max_length=100)
     session_epoch: int = Field(default=0, ge=0)
     request_id: str = Field(min_length=1, max_length=100)
-    text: str = Field(min_length=1, max_length=4000)
+    text: str = Field(min_length=1, max_length=15000)
 
     @field_validator("text")
     @classmethod
@@ -65,12 +69,14 @@ class RuntimeRequest(RuntimeContract):
 
 
 class RuntimeControl(RuntimeContract):
+    generation_id: str | None = Field(default=None, min_length=1, max_length=100)
     session_id: str = Field(min_length=1, max_length=100)
     session_epoch: int = Field(ge=0)
     request_id: str = Field(min_length=1, max_length=100)
 
 
 class RuntimeReset(RuntimeContract):
+    generation_id: str | None = Field(default=None, min_length=1, max_length=100)
     session_id: str = Field(min_length=1, max_length=100)
     session_epoch: int = Field(ge=0)
 
