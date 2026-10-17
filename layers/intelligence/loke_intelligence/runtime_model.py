@@ -72,7 +72,6 @@ class DemoRuntimeModel:
             return ModelReply(text="Let's choose a starting point.", tool_calls=[ModelToolCall(
                 "demo-choice", "generate_multiple_choice_response", json.dumps({
                     "question": "How would you like to explore this topic?",
-                    "presentation": "after_response",
                     "choices": [{"id": "example", "text": "Walk through an example"},
                                 {"id": "overview", "text": "Start with an overview"},
                                 {"id": "discuss", "text": "Discuss a specific question"}],

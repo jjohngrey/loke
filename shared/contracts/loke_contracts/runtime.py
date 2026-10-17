@@ -1,6 +1,6 @@
 """Public agent-runtime contracts, independent of learner state and storage."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -26,14 +26,6 @@ class Choice(RuntimeContract):
 class MultipleChoiceInput(RuntimeContract):
     question: str = Field(min_length=1, max_length=1000)
     choices: list[Choice] = Field(min_length=3, max_length=5)
-    presentation: Literal["after_response", "inline"] = Field(
-        default="after_response",
-        description=(
-            "Use after_response for follow-up choices that depend on the explanation: "
-            "display them after the response completes successfully. Use inline for a "
-            "clarification or standalone question: display it at the tool's position."
-        ),
-    )
 
     @field_validator("question")
     @classmethod
@@ -109,16 +101,45 @@ class RunUsage(RuntimeContract):
     elapsed_ms: int = 0
 
 
+class TextBlock(RuntimeContract):
+    kind: Literal["text"]
+    block_id: str
+    state: Literal["streaming", "complete", "failed", "cancelled"]
+    text: str
+
+
+class ToolBlock(RuntimeContract):
+    kind: Literal["tool"]
+    block_id: str
+    call_id: str
+    state: Literal["pending", "ready", "failed", "cancelled"]
+    elements: list[MultipleChoiceElement]
+    notice: str | None = None
+
+
+OutputBlock = Annotated[TextBlock | ToolBlock, Field(discriminator="kind")]
+
+
 class RunOutcome(RuntimeContract):
     run_id: str
     request_id: str
     session_epoch: int
     status: Literal["completed", "failed", "cancelled"]
+    blocks: list[OutputBlock]
     text: str
     elements: list[MultipleChoiceElement] = Field(default_factory=list)
     reason: str | None = None
     notice: str | None = None
     usage: RunUsage
+
+    @model_validator(mode="after")
+    def terminal_blocks(self):
+        ids = [block.block_id for block in self.blocks]
+        if len(set(ids)) != len(ids):
+            raise ValueError("Block IDs must be unique.")
+        if any(block.state in {"streaming", "pending"} for block in self.blocks):
+            raise ValueError("An outcome cannot contain unfinished blocks.")
+        return self
 
 
 class RunEvent(RuntimeContract):
@@ -126,8 +147,24 @@ class RunEvent(RuntimeContract):
     request_id: str
     session_epoch: int
     sequence: int
-    type: Literal["progress", "message_delta", "element", "outcome"]
+    type: Literal["progress", "block_start", "text_delta", "block_end", "tool_result", "outcome"]
     call_id: str | None = None
+    block_id: str | None = None
     message: str | None = None
-    element: MultipleChoiceElement | None = None
+    block: OutputBlock | None = None
     outcome: RunOutcome | None = None
+
+    @model_validator(mode="after")
+    def block_event(self):
+        if self.type == "text_delta" and (not self.block_id or self.message is None):
+            raise ValueError("Text deltas require a block ID and text.")
+        if self.type == "block_start":
+            if self.block is None or self.block.state not in {"streaming", "pending"}:
+                raise ValueError("Block starts require an unfinished block.")
+        if self.type == "block_end":
+            if not isinstance(self.block, TextBlock) or self.block.state == "streaming":
+                raise ValueError("Block ends require a settled text block.")
+        if self.type == "tool_result":
+            if not isinstance(self.block, ToolBlock) or self.block.state == "pending":
+                raise ValueError("Tool results require a settled tool block.")
+        return self

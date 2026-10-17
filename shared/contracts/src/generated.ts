@@ -108,9 +108,19 @@ export type RunId1 = string;
 export type RequestId5 = string;
 export type SessionEpoch4 = number;
 export type Sequence = number;
-export type Type = "progress" | "message_delta" | "element" | "outcome";
+export type Type = "progress" | "block_start" | "text_delta" | "block_end" | "tool_result" | "outcome";
 export type CallId = string | null;
+export type BlockId = string | null;
 export type Message = string | null;
+export type Block = (TextBlock | ToolBlock) | null;
+export type Kind3 = "text";
+export type BlockId1 = string;
+export type State = "streaming" | "complete" | "failed" | "cancelled";
+export type Text5 = string;
+export type Kind4 = "tool";
+export type BlockId2 = string;
+export type CallId1 = string;
+export type State1 = "pending" | "ready" | "failed" | "cancelled";
 export type Question = string;
 /**
  * @minItems 3
@@ -119,21 +129,20 @@ export type Question = string;
 export type Choices =
   [Choice, Choice, Choice] | [Choice, Choice, Choice, Choice] | [Choice, Choice, Choice, Choice, Choice];
 export type Id4 = string;
-export type Text5 = string;
-/**
- * Use after_response for follow-up choices that depend on the explanation: display them after the response completes successfully. Use inline for a clarification or standalone question: display it at the tool's position.
- */
-export type Presentation = "after_response" | "inline";
+export type Text6 = string;
 export type Type1 = "multiple_choice";
 export type ElementId = string;
+export type Elements = MultipleChoiceElement[];
+export type Notice = string | null;
 export type RunId2 = string;
 export type RequestId6 = string;
 export type SessionEpoch5 = number;
 export type Status2 = "completed" | "failed" | "cancelled";
-export type Text6 = string;
-export type Elements = MultipleChoiceElement[];
+export type Blocks = (TextBlock | ToolBlock)[];
+export type Text7 = string;
+export type Elements1 = MultipleChoiceElement[];
 export type Reason1 = string | null;
-export type Notice = string | null;
+export type Notice1 = string | null;
 export type ModelCalls1 = number;
 export type ToolCalls1 = number;
 export type PromptTokens = number;
@@ -317,30 +326,45 @@ export interface RunEvent {
   sequence: Sequence;
   type: Type;
   call_id?: CallId;
+  block_id?: BlockId;
   message?: Message;
-  element?: MultipleChoiceElement | null;
+  block?: Block;
   outcome?: RunOutcome | null;
+}
+export interface TextBlock {
+  kind: Kind3;
+  block_id: BlockId1;
+  state: State;
+  text: Text5;
+}
+export interface ToolBlock {
+  kind: Kind4;
+  block_id: BlockId2;
+  call_id: CallId1;
+  state: State1;
+  elements: Elements;
+  notice?: Notice;
 }
 export interface MultipleChoiceElement {
   question: Question;
   choices: Choices;
-  presentation?: Presentation;
   type?: Type1;
   element_id: ElementId;
 }
 export interface Choice {
   id: Id4;
-  text: Text5;
+  text: Text6;
 }
 export interface RunOutcome {
   run_id: RunId2;
   request_id: RequestId6;
   session_epoch: SessionEpoch5;
   status: Status2;
-  text: Text6;
-  elements?: Elements;
+  blocks: Blocks;
+  text: Text7;
+  elements?: Elements1;
   reason?: Reason1;
-  notice?: Notice;
+  notice?: Notice1;
   usage: RunUsage;
 }
 export interface RunUsage {

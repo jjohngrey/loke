@@ -5,6 +5,7 @@ import { ChatMarkdown } from "./chat-markdown";
 import { useRuntimeChat } from "./use-runtime-chat";
 import { RuntimeElement } from "./runtime-elements";
 import type { RuntimeDisplay } from "./runtime-client";
+import { visibleBlocks } from "./runtime-client";
 import {
   useEffect,
   useRef,
@@ -666,19 +667,28 @@ export default function Workspace() {
                         >
                           <div className="message-content">
                             {message.runtime
-                              ? message.runtime.blocks.map((block) => block.kind === "text" ? (
-                                <ChatMarkdown key={block.id} text={block.text}
-                                  streaming={!message.runtime?.outcome} />
+                              ? visibleBlocks(message.runtime.blocks).map((block) => block.kind === "text" ? (
+                                <ChatMarkdown key={block.block_id} text={block.text}
+                                  streaming={block.state === "streaming"} />
                               ) : (
-                                <RuntimeElement
-                                  key={block.id}
-                                  element={block.element}
-                                  disabled={!!chatBusy || message.runtime?.outcome?.status !== "completed"}
-                                  onChoose={(choice, question) => submitChatMessage(
-                                    `Question: ${question}\nSelected choice: ${choice}`,
-                                    choice,
+                                <div key={block.block_id}>
+                                  {block.state === "ready" && block.elements.map((element) => (
+                                    <RuntimeElement
+                                      key={element.element_id}
+                                      element={element}
+                                      disabled={!!chatBusy || message.runtime?.outcome?.status !== "completed"}
+                                      onChoose={(choice, question) => submitChatMessage(
+                                        `Question: ${question}\nSelected choice: ${choice}`,
+                                        choice,
+                                      )}
+                                    />
+                                  ))}
+                                  {block.state === "failed" && (
+                                    <div className="response-status response-error" role="status">
+                                      {block.notice || "This tool could not complete."}
+                                    </div>
                                   )}
-                                />
+                                </div>
                               ))
                               : message.text && (message.role === "loke"
                                 ? <ChatMarkdown text={message.text} />

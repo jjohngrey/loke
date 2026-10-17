@@ -567,16 +567,6 @@
           "title": "Choices",
           "type": "array"
         },
-        "presentation": {
-          "default": "after_response",
-          "description": "Use after_response for follow-up choices that depend on the explanation: display them after the response completes successfully. Use inline for a clarification or standalone question: display it at the tool's position.",
-          "enum": [
-            "after_response",
-            "inline"
-          ],
-          "title": "Presentation",
-          "type": "string"
-        },
         "type": {
           "const": "multiple_choice",
           "default": "multiple_choice",
@@ -752,8 +742,10 @@
         "type": {
           "enum": [
             "progress",
-            "message_delta",
-            "element",
+            "block_start",
+            "text_delta",
+            "block_end",
+            "tool_result",
             "outcome"
           ],
           "title": "Type",
@@ -771,6 +763,18 @@
           "default": null,
           "title": "Call Id"
         },
+        "block_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Block Id"
+        },
         "message": {
           "anyOf": [
             {
@@ -783,16 +787,31 @@
           "default": null,
           "title": "Message"
         },
-        "element": {
+        "block": {
           "anyOf": [
             {
-              "$ref": "#/$defs/MultipleChoiceElement"
+              "discriminator": {
+                "mapping": {
+                  "text": "#/$defs/TextBlock",
+                  "tool": "#/$defs/ToolBlock"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/TextBlock"
+                },
+                {
+                  "$ref": "#/$defs/ToolBlock"
+                }
+              ]
             },
             {
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "title": "Block"
         },
         "outcome": {
           "anyOf": [
@@ -882,6 +901,27 @@
           "title": "Status",
           "type": "string"
         },
+        "blocks": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "text": "#/$defs/TextBlock",
+                "tool": "#/$defs/ToolBlock"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/TextBlock"
+              },
+              {
+                "$ref": "#/$defs/ToolBlock"
+              }
+            ]
+          },
+          "title": "Blocks",
+          "type": "array"
+        },
         "text": {
           "title": "Text",
           "type": "string"
@@ -926,6 +966,7 @@
         "request_id",
         "session_epoch",
         "status",
+        "blocks",
         "text",
         "usage"
       ],
@@ -1116,6 +1157,98 @@
         "text"
       ],
       "title": "SourceChunk",
+      "type": "object"
+    },
+    "TextBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "text",
+          "title": "Kind",
+          "type": "string"
+        },
+        "block_id": {
+          "title": "Block Id",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "streaming",
+            "complete",
+            "failed",
+            "cancelled"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "block_id",
+        "state",
+        "text"
+      ],
+      "title": "TextBlock",
+      "type": "object"
+    },
+    "ToolBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "tool",
+          "title": "Kind",
+          "type": "string"
+        },
+        "block_id": {
+          "title": "Block Id",
+          "type": "string"
+        },
+        "call_id": {
+          "title": "Call Id",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "ready",
+            "failed",
+            "cancelled"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "elements": {
+          "items": {
+            "$ref": "#/$defs/MultipleChoiceElement"
+          },
+          "title": "Elements",
+          "type": "array"
+        },
+        "notice": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notice"
+        }
+      },
+      "required": [
+        "kind",
+        "block_id",
+        "call_id",
+        "state",
+        "elements"
+      ],
+      "title": "ToolBlock",
       "type": "object"
     },
     "TopicProposal": {

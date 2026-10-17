@@ -78,8 +78,8 @@ def test_text_tool_observation_final_and_follow_up():
         assert result.status == "completed"
         assert result.text == "A question first.\nChoose an option."
         assert len(result.elements) == 1
-        assert run.events[-2].type == "message_delta"
-        assert next(event.element for event in run.events if event.type == "element") == result.elements[0]
+        assert run.events[-2].type == "block_end"
+        assert next(event.block for event in run.events if event.type == "tool_result").elements == result.elements
         transcript = model.requests[1][0]
         assert transcript[-2]["tool_calls"][0]["id"] == transcript[-1]["tool_call_id"] == "call-1"
         assert json.loads(transcript[-1]["content"])["result"]["element"]["question"] == ARGUMENTS["question"]
@@ -91,26 +91,136 @@ def test_text_tool_observation_final_and_follow_up():
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize("presentation", [None, "after_response", "inline"])
-def test_choice_presentation_survives_tool_observation_and_event_replay(presentation):
+@pytest.mark.parametrize("streamed", [False, True])
+def test_ordered_blocks_preserve_text_tool_caption_tool_closing_and_replay(streamed):
+    class StreamingModel(FakeModel):
+        async def complete(self, *args, **kwargs):
+            reply = await super().complete(*args, **kwargs)
+            if streamed:
+                kwargs["on_text_delta"](reply.text[:3])
+                await asyncio.sleep(0)
+                kwargs["on_text_delta"](reply.text[3:])
+                reply.text_streamed = True
+            return reply
+
     async def scenario():
-        arguments = dict(ARGUMENTS)
-        if presentation is not None:
-            arguments["presentation"] = presentation
-        model = FakeModel(ModelReply(tool_calls=[call(args=arguments)]),
-                          ModelReply("An explanation before the follow-up."))
+        model = StreamingModel(ModelReply("Explanation A", [call(call_id="one")]),
+                               ModelReply("Caption B", [call(call_id="two")]),
+                               ModelReply("Closing C"))
         run = engine(model).reserve("owner", request())
-        result = await finish(run)
-        expected = presentation or "after_response"
-        assert result.status == "completed"
-        assert result.elements[0].presentation == expected
-        element_event = next(event for event in run.events if event.type == "element")
-        assert element_event.element.presentation == expected
-        assert run.events.index(element_event) < next(
-            index for index, event in enumerate(run.events) if event.type == "message_delta"
-        )
-        observation = json.loads(model.requests[1][0][-1]["content"])
-        assert observation["result"]["element"]["presentation"] == expected
+        outcome = await finish(run)
+        assert outcome.status == "completed"
+        assert [block.kind for block in outcome.blocks] == ["text", "tool", "text", "tool", "text"]
+        assert [block.state for block in outcome.blocks] == ["complete", "ready", "complete", "ready", "complete"]
+        assert [block.text for block in outcome.blocks if block.kind == "text"] == [
+            "Explanation A", "Caption B", "Closing C",
+        ]
+        starts = [event.block for event in run.events if event.type == "block_start"]
+        assert [block.block_id for block in starts] == [block.block_id for block in outcome.blocks]
+        assert starts[0].text == "" and starts[0].state == "streaming"
+        assert starts[1].elements == [] and starts[1].state == "pending"
+        first_end = next(i for i, event in enumerate(run.events) if event.type == "block_end")
+        first_tool = next(i for i, event in enumerate(run.events)
+                          if event.type == "block_start" and event.block.kind == "tool")
+        assert first_end < first_tool
+        assert [event async for event in run.stream()] == run.events
+
+        # Feed the actual backend wire events into the production frontend reducer.
+        script = """
+import { applyRunEvent, emptyDisplay, readRunEvents, visibleBlocks }
+  from './layers/input/web/app/runtime-client.ts';
+let input = '';
+for await (const chunk of process.stdin) input += chunk;
+let display = emptyDisplay();
+await readRunEvents(new Response(input), (event) => { display = applyRunEvent(display, event); });
+process.stdout.write(JSON.stringify(visibleBlocks(display.blocks)));
+"""
+        wire = "\n".join(event.model_dump_json() for event in run.events) + "\n"
+        result = subprocess.run(["node", "--input-type=module", "-e", script], input=wire,
+                                capture_output=True, text=True, check=True)
+        assert json.loads(result.stdout) == [block.model_dump(mode="json") for block in outcome.blocks]
+    asyncio.run(scenario())
+
+
+def test_tool_batch_reserves_all_ui_slots_before_execution_and_finishes_text_early():
+    async def scenario():
+        started, release = asyncio.Event(), asyncio.Event()
+        spec = next(iter(example_registry().specs.values()))
+
+        async def handler(payload, context):
+            starts = [event.block for event in run.events if event.type == "block_start"]
+            assert [block.kind for block in starts] == ["text", "tool", "tool"]
+            assert any(event.type == "block_end" for event in run.events)
+            started.set()
+            await release.wait()
+            return await spec.handler(payload, context)
+
+        registry = ToolRegistry([replace(spec, handler=handler)])
+        runtime = engine(FakeModel(ModelReply("Context", [call(call_id="one"), call(call_id="two")]),
+                                   ModelReply("After both tools.")), registry)
+        run = runtime.reserve("owner", request())
+        await asyncio.wait_for(started.wait(), 1)
+        assert run.outcome is None
+        assert not any(event.type == "tool_result" for event in run.events)
+        release.set()
+        outcome = await finish(run)
+        assert [block.kind for block in outcome.blocks] == ["text", "tool", "tool", "text"]
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("stop", ["cancel", "failure", "reset"])
+def test_partial_stream_is_settled_and_late_callbacks_cannot_change_it(stop):
+    async def scenario():
+        started = asyncio.Event()
+        callbacks = []
+
+        class PartialModel:
+            async def complete(self, *args, **kwargs):
+                callback = kwargs["on_text_delta"]
+                callbacks.append(callback)
+                callback("Partial context.")
+                started.set()
+                if stop == "failure":
+                    raise ModelFailure("timeout")
+                await asyncio.Event().wait()
+
+        runtime = engine(PartialModel())
+        run = runtime.reserve("owner", request())
+        await started.wait()
+        if stop == "cancel":
+            runtime.cancel("owner", "chat", 0, "one")
+        if stop == "reset":
+            runtime.reset("owner", "chat", 0)
+        outcome = await asyncio.wait_for(finish(run), 1)
+        events = list(run.events)
+        callbacks[0]("Late content must not appear.")
+        assert run.events == events
+        if stop == "reset":
+            assert outcome.blocks == []
+        else:
+            assert outcome.blocks[0].text == "Partial context."
+            assert outcome.blocks[0].state == ("failed" if stop == "failure" else "cancelled")
+    asyncio.run(scenario())
+
+
+def test_completed_model_step_ignores_callbacks_retained_by_previous_steps():
+    callbacks = []
+
+    class RetainingModel(FakeModel):
+        async def complete(self, *args, **kwargs):
+            if callbacks:
+                callbacks[0]("Late first-step content.")
+            callbacks.append(kwargs["on_text_delta"])
+            reply = await super().complete(*args, **kwargs)
+            kwargs["on_text_delta"](reply.text)
+            reply.text_streamed = True
+            return reply
+
+    async def scenario():
+        model = RetainingModel(ModelReply("Before", [call()]), ModelReply("After"))
+        outcome = await finish(engine(model).reserve("owner", request()))
+        assert outcome.status == "completed" and outcome.text == "Before\nAfter"
+        assert [block.text for block in outcome.blocks if block.kind == "text"] == ["Before", "After"]
     asyncio.run(scenario())
 
 
@@ -155,6 +265,8 @@ def test_handler_failures(failure, code):
         model = FakeModel(ModelReply(tool_calls=[call()]), ModelReply("Try a different approach."))
         result = await finish(engine(model, registry).reserve("owner", request()))
         assert not result.elements
+        assert result.blocks[0].kind == "tool" and result.blocks[0].state == "failed"
+        assert result.blocks[1].kind == "text" and result.blocks[1].state == "complete"
         observation = model.requests[1][0][-1]["content"]
         assert json.loads(observation)["error"]["code"] == code
         assert "private secret" not in observation
@@ -164,11 +276,12 @@ def test_handler_failures(failure, code):
 def test_data_only_results_and_sequential_tools():
     async def scenario():
         spec = next(iter(example_registry().specs.values()))
-        registry = ToolRegistry([replace(spec, public_elements=lambda result: [])])
+        registry = ToolRegistry([replace(spec, public_elements=None)])
         model = FakeModel(ModelReply(tool_calls=[call(call_id="first"), call(call_id="second")]),
                           ModelReply("Observed both results."))
         result = await finish(engine(model, registry).reserve("owner", request()))
         assert result.status == "completed" and result.elements == []
+        assert all(block.kind == "text" for block in result.blocks)
         assert [m["tool_call_id"] for m in model.requests[-1][0] if m["role"] == "tool"] == ["first", "second"]
     asyncio.run(scenario())
 
@@ -298,7 +411,7 @@ def test_large_provider_responses_finish_without_stream_or_answer_size_cutoffs(m
         outcome = await finish(run)
         assert outcome.status == "completed" and outcome.notice is None
         assert outcome.text == answer
-        assert "".join(event.message for event in run.events if event.type == "message_delta") == answer
+        assert "".join(event.message for event in run.events if event.type == "text_delta") == answer
     asyncio.run(scenario())
 
 
@@ -487,14 +600,14 @@ def test_store_bounds_history():
     asyncio.run(scenario())
 
 
-def test_authenticated_stream_replay_conflict_and_reset(tmp_path, monkeypatch):
+def test_authenticated_stream_replay_conflict_and_reset(pg_url, monkeypatch):
     from loke_intelligence.app import create_app
 
     monkeypatch.setenv("MODEL_MODE", "demo")
     monkeypatch.setenv("SESSION_TOKEN", "test-runtime-token")
     model = FakeModel(ModelReply("First", [call()]), ModelReply("Choose."), ModelReply("After reset"))
     runtime = engine(model)
-    app = create_app(f"sqlite:///{tmp_path / 'api.db'}", agent_runtime=runtime)
+    app = create_app(pg_url, agent_runtime=runtime)
     headers = {"x-loke-session": "test-runtime-token"}
     with TestClient(app) as client:
         payload = request().model_dump()
@@ -504,6 +617,7 @@ def test_authenticated_stream_replay_conflict_and_reset(tmp_path, monkeypatch):
         events = [json.loads(line) for line in first.text.splitlines()]
         assert events[-1]["outcome"]["status"] == "completed"
         assert len(events[-1]["outcome"]["elements"]) == 1
+        assert [block["kind"] for block in events[-1]["outcome"]["blocks"]] == ["text", "tool", "text"]
         assert client.post("/api/runtime/run", json=payload, headers=headers).text == first.text
         assert len(model.requests) == 2
         assert client.post("/api/runtime/run", json={**payload, "text": "Changed"}, headers=headers).status_code == 409
@@ -765,7 +879,7 @@ def test_provider_truncated_replies_preserve_all_text_and_skip_tools(streamed, p
         assert outcome.notice == notice
         assert outcome.usage.prompt_tokens == 12 and outcome.usage.completion_tokens == 50
         assert outcome.usage.tool_calls == 0 and outcome.elements == []
-        assert any(event.type == "message_delta" for event in run.events)
+        assert any(event.type == "text_delta" for event in run.events)
         history = runtime.store.session("owner", "chat").conversation
         assert not any("tool_calls" in message for group in history for message in group)
     asyncio.run(scenario())

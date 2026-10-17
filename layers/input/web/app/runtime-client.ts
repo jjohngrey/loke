@@ -1,93 +1,67 @@
-import type { MultipleChoiceElement, RunEvent, RunOutcome } from "@loke/contracts";
+import type { RunEvent, RunOutcome } from "@loke/contracts";
 
-export type RuntimeBlock =
-  | { kind: "text"; id: string; text: string }
-  | { kind: "element"; id: string; element: MultipleChoiceElement };
+export type RuntimeBlock = RunOutcome["blocks"][number];
 
 export type RuntimeDisplay = {
   runId?: string;
   text: string;
   blocks: RuntimeBlock[];
-  pendingElements: MultipleChoiceElement[];
   sequence: number;
   progress: string;
   outcome?: RunOutcome;
 };
 
 export function emptyDisplay(): RuntimeDisplay {
-  return { text: "", blocks: [], pendingElements: [], sequence: -1, progress: "Connecting" };
+  return { text: "", blocks: [], sequence: -1, progress: "Connecting" };
 }
 
-function appendText(blocks: RuntimeBlock[], text: string, sequence: number) {
-  if (!text) return blocks;
-  const last = blocks[blocks.length - 1];
-  if (last?.kind === "text") {
-    return [...blocks.slice(0, -1), { ...last, text: last.text + text }];
+/** Show a completed prefix plus its first streaming text block. */
+export function visibleBlocks(blocks: RuntimeBlock[]): RuntimeBlock[] {
+  const visible: RuntimeBlock[] = [];
+  for (const block of blocks) {
+    if (block.kind === "tool" && block.state === "pending") break;
+    visible.push(block);
+    if (block.kind === "text" && block.state === "streaming") break;
   }
-  return [...blocks, { kind: "text" as const, id: `text-${sequence}`, text }];
-}
-
-function addElement(blocks: RuntimeBlock[], element: MultipleChoiceElement) {
-  const index = blocks.findIndex((block) => block.kind === "element" && block.id === element.element_id);
-  if (index >= 0) {
-    return blocks.map((block, blockIndex) => blockIndex === index
-      ? { kind: "element" as const, id: element.element_id, element }
-      : block);
-  }
-  return [...blocks, { kind: "element" as const, id: element.element_id, element }];
+  return visible;
 }
 
 export function applyRunEvent(display: RuntimeDisplay, event: RunEvent): RuntimeDisplay {
-  if ((display.runId && display.runId !== event.run_id) || event.sequence <= display.sequence)
-    return display;
+  if (display.outcome || (display.runId && display.runId !== event.run_id) ||
+      event.sequence <= display.sequence) return display;
+  if (event.type !== "outcome" && event.sequence !== display.sequence + 1)
+    throw new Error("The response stream is missing an event. Retry to reconnect.");
+
   let blocks = display.blocks;
-  let pendingElements = display.pendingElements;
-  let text = display.text;
-  function receiveElement(element: MultipleChoiceElement) {
-    if (element.presentation === "inline") {
-      blocks = addElement(blocks, element);
-    } else {
-      const index = pendingElements.findIndex((item) => item.element_id === element.element_id);
-      pendingElements = index < 0 ? [...pendingElements, element]
-        : pendingElements.map((item, itemIndex) => itemIndex === index ? element : item);
-    }
+  if (event.type === "block_start" && event.block) {
+    if (blocks.some((block) => block.block_id === event.block?.block_id))
+      throw new Error("The response stream repeated a block. Retry to reconnect.");
+    blocks = [...blocks, event.block];
   }
-  if (event.type === "message_delta" && event.message) {
-    text += event.message;
-    blocks = appendText(blocks, event.message, event.sequence);
+  if (event.type === "text_delta") {
+    const index = blocks.findIndex((block) => block.block_id === event.block_id);
+    const block = blocks[index];
+    if (!block || block.kind !== "text" || block.state !== "streaming")
+      throw new Error("The response stream contains unexpected text. Retry to reconnect.");
+    blocks = blocks.map((item, itemIndex) => itemIndex === index
+      ? { ...block, text: block.text + (event.message || "") } : item);
   }
-  if (event.element) receiveElement(event.element);
-  if (event.outcome && event.outcome.text !== text) {
-    const finalText = event.outcome.text;
-    if (finalText.startsWith(text)) {
-      blocks = appendText(blocks, finalText.slice(text.length), event.sequence);
-    } else {
-      let replaced = false;
-      blocks = blocks.map<RuntimeBlock>((block) => {
-        if (block.kind !== "text") return block;
-        if (replaced) return { ...block, text: "" };
-        replaced = true;
-        return { ...block, text: finalText };
-      }).filter((block) => block.kind !== "text" || block.text.length > 0);
-      if (!replaced) blocks = appendText(blocks, finalText, event.sequence);
-    }
-    text = finalText;
+  if ((event.type === "block_end" || event.type === "tool_result") && event.block) {
+    const updated = event.block;
+    const index = blocks.findIndex((block) => block.block_id === updated.block_id);
+    if (index < 0 || blocks[index].kind !== updated.kind)
+      throw new Error("The response stream contains an unknown block. Retry to reconnect.");
+    blocks = blocks.map((block, blockIndex) => blockIndex === index ? updated : block);
   }
-  if (event.outcome) {
-    for (const element of event.outcome.elements || []) receiveElement(element);
-    // Tool execution order is independent of when follow-up questions become visible.
-    if (event.outcome.status === "completed") {
-      for (const element of pendingElements) blocks = addElement(blocks, element);
-    }
-    pendingElements = [];
-  }
+  // Ordered snapshots, rather than flat text and element arrays, are authoritative on replay.
+  if (event.outcome) blocks = event.outcome.blocks;
   return {
     ...display,
     runId: event.run_id,
     sequence: event.sequence,
-    text,
+    text: event.outcome?.text ?? blocks.filter((block) => block.kind === "text")
+      .map((block) => block.text).join("\n"),
     blocks,
-    pendingElements,
     progress: event.type === "progress" ? event.message || "Working" : display.progress,
     outcome: event.outcome || display.outcome,
   };

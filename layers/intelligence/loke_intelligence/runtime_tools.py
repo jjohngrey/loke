@@ -25,7 +25,7 @@ class ToolSpec:
     output_schema: type[BaseModel]
     handler: Callable[[BaseModel, ToolContext], Awaitable[Any]]
     permission: Callable[[ToolContext], bool]
-    public_elements: Callable[[BaseModel], list[MultipleChoiceElement]] = lambda result: []
+    public_elements: Callable[[BaseModel], list[MultipleChoiceElement]] | None = None
     timeout_seconds: float = 3.0
     result_chars: int = 6000
 
@@ -102,7 +102,7 @@ class ToolRegistry:
                 elements = [MultipleChoiceElement.model_validate(
                     element.model_dump() if isinstance(element, BaseModel) else element, strict=True
                 )
-                            for element in spec.public_elements(result)]
+                            for element in (spec.public_elements(result) if spec.public_elements else [])]
             except (ValidationError, TypeError, ValueError):
                 return error("invalid_result", "Tool output does not match the output schema.")
             if len(result.model_dump_json()) > min(result_chars, spec.result_chars):
@@ -125,9 +125,8 @@ def example_registry():
     return ToolRegistry([ToolSpec(
         name="generate_multiple_choice_response",
         description=(
-            "Prepare a question with 3–5 choices you author. Set presentation to after_response "
-            "for follow-up choices shown after the completed explanation, or inline for a "
-            "clarification or standalone question shown at the tool's position."
+            "Display a question with 3–5 choices you author at this point in the response. "
+            "Write any explanation the question depends on before calling this tool."
         ),
         input_schema=MultipleChoiceInput,
         output_schema=MultipleChoiceOutput,

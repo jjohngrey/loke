@@ -80,14 +80,25 @@ with strict input/output schemas, permission and execution limits. The UI maps t
 The authenticated proxy exposes POST `runtime/run` (`session_id`, `session_epoch`,
 `request_id`, `text`), `runtime/cancel` (same identity fields without text), and
 `runtime/reset` (`session_id`, `session_epoch`). Run responses are newline-delimited
-`RunEvent` JSON: ordered progress, text deltas, validated elements, then one terminal
-`RunOutcome` with status, reason and usage. Public text deltas append; the outcome text
-is authoritative. Cards merge by run/element ID across progress and final replay.
-The choice tool accepts `presentation`: `after_response` (the default) holds follow-up
-cards until successful completion and places them after all response text; `inline`
-shows clarification or standalone questions at the tool event's position. Text keeps
-streaming while follow-up cards wait. Failed or cancelled runs discard pending cards.
-This presentation rule does not change tool execution or observation order.
+`RunEvent` JSON: progress, `block_start`, `text_delta`, `block_end`, `tool_result`, then
+one terminal `RunOutcome` with status, reason and usage. Each text segment and UI-producing
+tool has a stable block ID. A model step streams its text and closes that block before
+the runtime reserves the step's tool positions. All UI tool positions in a batch are
+reserved before execution; results fill those positions instead of appending on arrival.
+Tools without a public-element renderer do not reserve display blocks.
+
+The UI renders a completed prefix plus its first streaming text block. A pending tool
+or unfinished text blocks later content, even if that content is ready. Text is finalized
+per block, so an explanation, card, caption, second card and closing text keep their order.
+Tools still execute sequentially; the display queue also handles out-of-order completions.
+The model must write prerequisite context before requesting the dependent tool. There is
+no choice-specific placement setting or end-of-turn card buffer.
+
+The outcome's ordered `blocks` snapshot is authoritative for reconnect and final replay;
+flat `text` and `elements` remain convenience fields, not a way to reconstruct placement.
+Failure and cancellation settle unfinished blocks and preserve partial text. Reset clears
+old output, and late callbacks cannot modify completed steps. This replaces the previous
+event protocol; restart the backend and reload the frontend together when updating.
 
 Disconnect detaches the stream while the run continues until completion or cancellation. Retry
 reuses the exact request and replays/attaches to that run. Stop explicitly cancels it;

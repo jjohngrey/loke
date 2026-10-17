@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import * as runtimeClient from "../layers/input/web/app/runtime-client.ts";
-const { applyRunEvent, emptyDisplay, readRunEvents } = runtimeClient;
+const { applyRunEvent, emptyDisplay, readRunEvents, visibleBlocks } = runtimeClient;
 
 const element = {
   type: "multiple_choice", element_id: "element-1", question: "Choose?",
@@ -13,94 +13,121 @@ const event = (sequence, type, fields = {}) => ({
   run_id: "run-1", request_id: "request-1", session_epoch: 0, sequence, type, ...fields,
 });
 
-test("progress replay and final outcomes merge one card by run/element identity", () => {
-  const events = [event(0, "progress", { message: "Thinking" }),
-    event(1, "element", { element }), event(2, "message_delta", { message: "Choose." }),
-    event(3, "outcome", { outcome: { status: "completed", text: "Final text.", elements: [element] } })];
+const textBlock = (block_id, text = "", state = "streaming") => ({
+  kind: "text", block_id, text, state,
+});
+const toolBlock = (block_id, state = "pending", elements = []) => ({
+  kind: "tool", block_id, call_id: block_id, state, elements,
+});
+const finishEvent = (sequence, blocks, status = "completed") => event(sequence, "outcome", {
+  outcome: { status, blocks, text: blocks.filter((block) => block.kind === "text")
+    .map((block) => block.text).join("\n"), elements: [] },
+});
+const visibleIds = (state) => visibleBlocks(state.blocks).map((block) => block.block_id);
+
+test("text-tool-text-tool-text keeps intermediate placement through replay and final snapshots", () => {
+  const blocks = [textBlock("a", "Explanation.", "complete"), toolBlock("b", "ready", [element]),
+    textBlock("c", "Caption.", "complete"), toolBlock("d", "ready", [{ ...element, element_id: "two" }]),
+    textBlock("e", "Closing.", "complete")];
+  const events = [];
+  for (const block of blocks) {
+    events.push(event(events.length, "block_start", { block: block.kind === "text"
+      ? textBlock(block.block_id) : toolBlock(block.block_id) }));
+    if (block.kind === "text") events.push(event(events.length, "text_delta", {
+      block_id: block.block_id, message: block.text,
+    }));
+    events.push(event(events.length, block.kind === "text" ? "block_end" : "tool_result", { block }));
+  }
   let state = events.reduce(applyRunEvent, emptyDisplay());
-  state = events.reduce(applyRunEvent, state);
-  assert.equal(state.text, "Final text.");
-  assert.equal(state.blocks.filter((block) => block.kind === "element").length, 1);
-  assert.equal(state.sequence, 3);
-  assert.equal(applyRunEvent(state, { ...event(4, "element", { element }), run_id: "another" }), state);
+  assert.deepEqual(state.blocks, blocks);
+  assert.deepEqual(visibleIds(state), ["a", "b", "c", "d", "e"]);
+  const snapshot = finishEvent(events.length, blocks);
+  state = applyRunEvent(state, snapshot);
+  assert.deepEqual(events.reduce(applyRunEvent, state), state);
+  assert.deepEqual(applyRunEvent(emptyDisplay(), snapshot).blocks, blocks);
+  assert.equal(applyRunEvent(state, snapshot), state);
+  assert.equal(applyRunEvent(state, event(999, "progress")), state);
 });
 
-test("follow-up choices wait for successful completion after all response text", () => {
-  let state = applyRunEvent(emptyDisplay(), event(0, "element", {
-    element: { ...element, presentation: "after_response" },
+test("ready tools and later text stay hidden until preceding text finishes", () => {
+  const events = [
+    event(0, "block_start", { block: textBlock("a") }),
+    event(1, "text_delta", { block_id: "a", message: "An explanation" }),
+    event(2, "block_start", { block: toolBlock("b") }),
+    event(3, "tool_result", { block: toolBlock("b", "ready", [element]) }),
+    event(4, "block_start", { block: textBlock("c") }),
+    event(5, "text_delta", { block_id: "c", message: "A caption" }),
+  ];
+  let state = events.reduce(applyRunEvent, emptyDisplay());
+  assert.deepEqual(visibleIds(state), ["a"]);
+  assert.equal(state.blocks[0].text, "An explanation");
+  state = applyRunEvent(state, event(6, "block_end", {
+    block: textBlock("a", "An explanation", "complete"),
   }));
-  assert.deepEqual(state.blocks, []);
-  state = applyRunEvent(state, event(1, "message_delta", { message: "An overview" }));
-  assert.deepEqual(state.blocks.map((block) => block.kind), ["text"]);
-  assert.equal(state.blocks[0].text, "An overview");
-  state = applyRunEvent(state, event(2, "outcome", { outcome: {
-    status: "completed", text: "An overview with final details.",
-    elements: [{ ...element, presentation: "after_response" }],
-  } }));
-  assert.deepEqual(state.blocks.map((block) => block.kind), ["text", "element"]);
-  assert.equal(state.blocks[0].text, "An overview with final details.");
-  assert.equal(state.blocks[1].id, element.element_id);
+  assert.deepEqual(visibleIds(state), ["a", "b", "c"]);
+  assert.equal(state.blocks[0].state, "complete");
+  assert.equal(state.blocks[2].state, "streaming");
 });
 
-test("choices without presentation metadata default to after the response", () => {
-  let state = applyRunEvent(emptyDisplay(), event(0, "element", { element }));
-  assert.deepEqual(state.blocks, []);
-  state = applyRunEvent(state, event(1, "outcome", { outcome: {
-    status: "completed", text: "Context first.", elements: [element],
-  } }));
-  assert.deepEqual(state.blocks.map((block) => block.kind), ["text", "element"]);
+test("out-of-order tool completions fill reserved positions without overtaking", () => {
+  let state = [event(0, "block_start", { block: toolBlock("first") }),
+    event(1, "block_start", { block: toolBlock("second") }),
+    event(2, "tool_result", { block: toolBlock("second", "ready", [element]) })]
+    .reduce(applyRunEvent, emptyDisplay());
+  assert.deepEqual(visibleIds(state), []);
+  state = applyRunEvent(state, event(3, "tool_result", {
+    block: toolBlock("first", "ready", [{ ...element, element_id: "first-card" }]),
+  }));
+  assert.deepEqual(visibleIds(state), ["first", "second"]);
+  assert.equal(state.blocks[0].elements[0].element_id, "first-card");
 });
 
-test("inline choices keep their position between streamed text blocks", () => {
-  let state = applyRunEvent(emptyDisplay(), event(0, "message_delta", { message: "Before." }));
-  const inline = { ...element, presentation: "inline" };
-  state = applyRunEvent(state, event(1, "element", { element: inline }));
-  assert.deepEqual(state.blocks.map((block) => block.kind), ["text", "element"]);
-  state = applyRunEvent(state, event(2, "message_delta", { message: "After." }));
-  state = applyRunEvent(state, event(3, "outcome", { outcome: {
-    status: "completed", text: "Before.After.", elements: [inline],
-  } }));
-  assert.deepEqual(state.blocks.map((block) => block.kind), ["text", "element", "text"]);
-});
-
-test("outcome-only replay puts follow-up choices after authoritative text", () => {
-  const final = event(5, "outcome", { outcome: {
-    status: "completed", text: "The complete explanation.", elements: [element],
-  } });
-  const state = applyRunEvent(emptyDisplay(), final);
-  assert.deepEqual(state.blocks.map((block) => block.kind), ["text", "element"]);
-  assert.equal(applyRunEvent(state, final), state);
-});
-
-test("pending choices update without duplication and remain after corrected final text", () => {
-  let state = applyRunEvent(emptyDisplay(), event(0, "message_delta", { message: "Draft." }));
-  state = applyRunEvent(state, event(1, "element", { element }));
-  const updated = { ...element, question: "Updated question?" };
-  state = applyRunEvent(state, event(2, "element", { element: updated }));
-  const second = { ...element, element_id: "element-2" };
-  state = applyRunEvent(state, event(3, "element", { element: second }));
-  state = applyRunEvent(state, event(4, "outcome", { outcome: {
-    status: "completed", text: "Corrected explanation.", elements: [updated, second],
-  } }));
-  assert.deepEqual(state.blocks.map((block) => block.kind), ["text", "element", "element"]);
-  assert.equal(state.blocks[0].text, "Corrected explanation.");
-  assert.equal(state.blocks[1].element.question, "Updated question?");
-  assert.equal(state.blocks[2].id, second.element_id);
+test("a clarification with no preceding text appears as soon as its tool is ready", () => {
+  let state = applyRunEvent(emptyDisplay(), event(0, "block_start", { block: toolBlock("question") }));
+  assert.deepEqual(visibleIds(state), []);
+  state = applyRunEvent(state, event(1, "tool_result", {
+    block: toolBlock("question", "ready", [element]),
+  }));
+  assert.deepEqual(visibleIds(state), ["question"]);
+  assert.equal(state.outcome, undefined);
 });
 
 for (const status of ["failed", "cancelled"]) {
-  test(`${status} responses discard pending choices while preserving text`, () => {
-    let state = applyRunEvent(emptyDisplay(), event(0, "element", { element }));
-    state = applyRunEvent(state, event(1, "message_delta", { message: "Partial explanation." }));
-    state = applyRunEvent(state, event(2, "outcome", { outcome: {
-      status, text: "Partial explanation.", notice: "Response stopped.", elements: [element],
-    } }));
-    assert.deepEqual(state.blocks.map((block) => block.kind), ["text"]);
-    assert.equal(state.text, "Partial explanation.");
-    assert.equal(state.outcome.notice, "Response stopped.");
-    assert.deepEqual(state.pendingElements, []);
+  test(`${status} outcomes settle pending blocks and preserve partial text`, () => {
+    let state = [event(0, "block_start", { block: textBlock("partial") }),
+      event(1, "text_delta", { block_id: "partial", message: "Partial answer." }),
+      event(2, "block_start", { block: toolBlock("pending") })]
+      .reduce(applyRunEvent, emptyDisplay());
+    const blocks = [textBlock("partial", "Partial answer.", status), toolBlock("pending", status)];
+    state = applyRunEvent(state, finishEvent(3, blocks, status));
+    assert.deepEqual(visibleIds(state), ["partial", "pending"]);
+    assert.equal(state.text, "Partial answer.");
+    assert.ok(state.blocks.every((block) => !["streaming", "pending"].includes(block.state)));
   });
 }
+
+test("a failed tool settles its position and allows subsequent text to stream", () => {
+  const failed = { ...toolBlock("bad", "failed"), notice: "Could not prepare the diagram." };
+  const state = [event(0, "block_start", { block: toolBlock("bad") }),
+    event(1, "tool_result", { block: failed }),
+    event(2, "block_start", { block: textBlock("recovery") }),
+    event(3, "text_delta", { block_id: "recovery", message: "Here is an explanation instead." })]
+    .reduce(applyRunEvent, emptyDisplay());
+  assert.deepEqual(visibleIds(state), ["bad", "recovery"]);
+  assert.equal(state.blocks[0].notice, failed.notice);
+});
+
+test("event gaps and unknown blocks require reconnect rather than silently changing order", () => {
+  assert.throws(() => applyRunEvent(emptyDisplay(), event(1, "progress")), /missing an event/);
+  assert.throws(() => applyRunEvent(emptyDisplay(), event(0, "text_delta", {
+    block_id: "missing", message: "Text",
+  })), /unexpected text/);
+  assert.throws(() => applyRunEvent(emptyDisplay(), event(0, "tool_result", {
+    block: toolBlock("missing", "ready", []),
+  })), /unknown block/);
+  const state = applyRunEvent(emptyDisplay(), event(0, "progress"));
+  assert.equal(applyRunEvent(state, { ...event(1, "progress"), run_id: "other" }), state);
+});
 
 test("streaming proxy survives its former deadline and still propagates client cancellation", async () => {
   const require = createRequire(import.meta.url);
@@ -151,7 +178,7 @@ test("streaming proxy survives its former deadline and still propagates client c
 });
 
 test("NDJSON parser handles split UTF-8 and rejects truncated streams", async () => {
-  const bytes = new TextEncoder().encode(JSON.stringify(event(0, "message_delta", { message: "选择" })) + "\n");
+  const bytes = new TextEncoder().encode(JSON.stringify(event(0, "text_delta", { block_id: "text", message: "选择" })) + "\n");
   const stream = new ReadableStream({ start(controller) {
     for (const byte of bytes) controller.enqueue(new Uint8Array([byte]));
     controller.close();
@@ -165,8 +192,9 @@ test("NDJSON parser handles split UTF-8 and rejects truncated streams", async ()
 test("large final answers survive fragmented NDJSON and render after streamed text", async () => {
   const text = "宇宙 is large. ".repeat(12000);
   const bytes = new TextEncoder().encode([
-    event(0, "message_delta", { message: text.slice(0, 6000) }),
-    event(1, "outcome", { outcome: { status: "completed", text, elements: [element] } }),
+    event(0, "block_start", { block: textBlock("long") }),
+    event(1, "text_delta", { block_id: "long", message: text.slice(0, 6000) }),
+    finishEvent(2, [textBlock("long", text, "complete"), toolBlock("choices", "ready", [element])]),
   ].map((item) => JSON.stringify(item) + "\n").join(""));
   const stream = new ReadableStream({ start(controller) {
     for (let offset = 0; offset < bytes.length; offset += 4096)
@@ -176,7 +204,7 @@ test("large final answers survive fragmented NDJSON and render after streamed te
   let state = emptyDisplay();
   await readRunEvents(new Response(stream), (event) => { state = applyRunEvent(state, event); });
   assert.equal(state.text, text);
-  assert.deepEqual(state.blocks.map((block) => block.kind), ["text", "element"]);
+  assert.deepEqual(state.blocks.map((block) => block.kind), ["text", "tool"]);
   assert.equal(state.blocks[0].text, text);
 });
 
@@ -232,7 +260,7 @@ test("Stop after a pre-acknowledgement disconnect reconnects the identical reque
     if (url.endsWith("/cancel")) {
       const request = requests[0].payload;
       controller.enqueue(new TextEncoder().encode(JSON.stringify({ ...event(1, "outcome"),
-        request_id: request.request_id, outcome: { status: "cancelled", text: "Response cancelled.", elements: [] },
+        request_id: request.request_id, outcome: { status: "cancelled", text: "", notice: "Response cancelled.", elements: [], blocks: [] },
       }) + "\n"));
       controller.close();
       return Response.json({ run_id: "run-1", status: "running" });
