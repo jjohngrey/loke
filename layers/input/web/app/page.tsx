@@ -760,6 +760,7 @@ export default function Workspace() {
           </aside>
 
           <InlineThreads key={view?.generation_id || "initial"}
+            generationId={view?.generation_id || ""}
             chatId={section === "chats" ? activeChatId : null}
             sources={(activeChat?.messages || []).filter((message) => message.role === "loke").map((message) => ({
               id: message.id, markdown: message.text,

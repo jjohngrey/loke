@@ -2,19 +2,20 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { intelligenceThreadAdapter } from "./side-thread-client";
 import { ChatMarkdown } from "./chat-markdown";
 import { buildTextIndex, captureRange, restoreRanges, SELECTION_VERSION, visibleRects } from "./selection-index";
-import { fakeThreadAdapter, SideThreadStore, type SelectionAnchor, type SourceMessage, type ThreadAdapter, type ThreadSession } from "./side-thread-store";
+import { SideThreadStore, type SelectionAnchor, type SourceMessage, type ThreadAdapter, type ThreadSession } from "./side-thread-store";
 
 type Pending = { anchor: SelectionAnchor; left: number; top: number };
 function contentRoot(node: Node) {
   return (node instanceof Element ? node : node.parentElement)?.closest<HTMLElement>("[data-message-content]");
 }
 
-export function InlineThreads({ chatId, sources, children, adapter = fakeThreadAdapter }: {
-  chatId: string | null; sources: SourceMessage[]; children: ReactNode; adapter?: ThreadAdapter;
+export function InlineThreads({ chatId, generationId, sources, children, adapter }: {
+  chatId: string | null; generationId: string; sources: SourceMessage[]; children: ReactNode; adapter?: ThreadAdapter;
 }) {
-  const [store] = useState(() => new SideThreadStore(adapter));
+  const [store] = useState(() => new SideThreadStore(adapter || intelligenceThreadAdapter(generationId)));
   const sessions = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
@@ -32,7 +33,7 @@ export function InlineThreads({ chatId, sources, children, adapter = fakeThreadA
   const hitRanges = useRef<{ id: string; root: HTMLElement; ranges: Range[] }[]>([]);
   const dragStart = useRef({ x: 0, y: 0 });
   const dragged = useRef(false);
-  const active = activeId ? sessions[activeId] : undefined;
+  const active = activeId && sessions[activeId]?.anchor.chatId === chatId ? sessions[activeId] : undefined;
   const visible = Object.values(sessions).filter((session) => session.anchor.chatId === chatId);
   const latest = useRef({ chatId, sources }); latest.current = { chatId, sources };
 
@@ -214,7 +215,7 @@ export function InlineThreads({ chatId, sources, children, adapter = fakeThreadA
   }
 
   return (
-    <div className={`thread-layout ${active ? "has-side-thread" : ""}`} ref={layout}
+    <div className={`thread-layout ${active ? "has-side-thread" : ""} ${visible.length ? "has-side-links" : ""}`} ref={layout}
       style={{ "--side-thread-width": `${width}px` } as React.CSSProperties}
       onPointerDown={(event) => { dragStart.current = { x: event.clientX, y: event.clientY }; dragged.current = false; }}
       onPointerMove={(event) => { if (event.buttons && Math.hypot(event.clientX - dragStart.current.x, event.clientY - dragStart.current.y) > 4) dragged.current = true; }}

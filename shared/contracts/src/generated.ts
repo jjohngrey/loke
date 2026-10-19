@@ -337,6 +337,33 @@ export type ToolCalls1 = number;
 export type PromptTokens = number;
 export type CompletionTokens = number;
 export type ElapsedMs = number;
+export type GenerationId17 = string;
+export type ThreadId = string;
+export type RequestId11 = string;
+export type ChatId2 = string;
+export type MessageId = string;
+export type SourceMarkdown = string;
+export type SelectedText = string;
+export type StartOffset = number;
+export type EndOffset = number;
+export type StreamVersion = "loke-rendered-v1";
+export type Role2 = "user" | "assistant";
+export type Text12 = string;
+/**
+ * @maxItems 200
+ */
+export type MainHistory = SideThreadTurn[];
+/**
+ * @maxItems 100
+ */
+export type History = SideThreadTurn[];
+export type MainHistoryTruncated = boolean;
+export type HistoryTruncated = boolean;
+export type Question1 = string;
+export type ThreadId1 = string;
+export type RequestId12 = string;
+export type Type2 = "delta" | "completed" | "error";
+export type Text13 = string;
 
 export interface PublishedContracts {
   goal: GoalInput;
@@ -371,6 +398,8 @@ export interface PublishedContracts {
   run_limits: RunLimits;
   run_event: RunEvent;
   run_outcome: RunOutcome;
+  side_thread_request: SideThreadRequest;
+  side_thread_event: SideThreadEvent;
 }
 export interface GoalInput {
   generation_id?: GenerationId;
@@ -785,4 +814,34 @@ export interface RunUsage {
   prompt_tokens?: PromptTokens;
   completion_tokens?: CompletionTokens;
   elapsed_ms?: ElapsedMs;
+}
+export interface SideThreadRequest {
+  generation_id: GenerationId17;
+  thread_id: ThreadId;
+  request_id: RequestId11;
+  anchor: SideThreadAnchor;
+  main_history?: MainHistory;
+  history?: History;
+  main_history_truncated?: MainHistoryTruncated;
+  history_truncated?: HistoryTruncated;
+  question: Question1;
+}
+export interface SideThreadAnchor {
+  chat_id: ChatId2;
+  message_id: MessageId;
+  source_markdown: SourceMarkdown;
+  selected_text: SelectedText;
+  start_offset: StartOffset;
+  end_offset: EndOffset;
+  stream_version: StreamVersion;
+}
+export interface SideThreadTurn {
+  role: Role2;
+  text: Text12;
+}
+export interface SideThreadEvent {
+  thread_id: ThreadId1;
+  request_id: RequestId12;
+  type: Type2;
+  text?: Text13;
 }

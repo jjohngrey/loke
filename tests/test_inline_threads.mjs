@@ -14,12 +14,22 @@ before(async () => { browser = await chromium.launch({ headless: true, executabl
 after(async () => { await browser?.close(); });
 
 export async function fixture(options = {}) {
-  const context = await browser.newContext({ viewport: { width: 1400, height: 1000 }, ...options });
+  const { sideReply, ...browserOptions } = options;
+  let sourceMarkdown = markdown;
+  const context = await browser.newContext({ viewport: { width: 1400, height: 1000 }, ...browserOptions });
   const page = await context.newPage();
   const requests = [];
   await page.route("**/api/backend/**", async (route) => {
     const path = new URL(route.request().url()).pathname.replace("/api/backend/", "");
     requests.push({ path, body: route.request().postDataJSON() });
+    if (path === "side-threads/reply") {
+      const body = route.request().postDataJSON();
+      if (sideReply) return sideReply(route, body);
+      const text = `Mock side answer about ${body.anchor.selected_text}: ${body.question}`;
+      const event = (type, text) => JSON.stringify({ thread_id: body.thread_id, request_id: body.request_id, type, text }) + "\n";
+      await route.fulfill({ contentType: "application/x-ndjson", body: event("delta", "Mock side ") + event("completed", text) });
+      return;
+    }
     const responses = {
       view: { ...view, active_quiz: null },
       capabilities: { audio_available: false, model_mode: "demo" },
@@ -28,7 +38,7 @@ export async function fixture(options = {}) {
       ] },
       "chats/history": { generation_id: view.generation_id, has_more: false, messages: [
         { id: "user-1", role: "user", text: "Explain these examples", sequence: 1 },
-        { id: "source-1", role: "assistant", text: markdown, sequence: 2 },
+        { id: "source-1", role: "assistant", text: sourceMarkdown, sequence: 2 },
       ] },
     };
     await route.fulfill({ json: responses[path] || {} });
@@ -37,7 +47,7 @@ export async function fixture(options = {}) {
   await page.getByRole("button", { name: "Rich selection fixture", exact: true }).click();
   await page.locator(".message.loke .katex-html").first().waitFor();
   await page.addScriptTag({ content: `{ const exports = {}; ${indexCode}; window.selectionTest = exports; }` });
-  return { context, page, requests };
+  return { context, page, requests, updateSource: (text) => { sourceMarkdown = text; } };
 }
 
 const rootSelector = ".message.loke .message-content";
@@ -161,6 +171,13 @@ test("popover submits into an isolated panel, reopens the same occurrence, and p
     assert.equal(await page.locator("[data-message-content]").textContent(), sourceText);
     const highlighted = await page.evaluate(() => [...CSS.highlights.get("loke-side-active")].map((range) => range.toString()).join(""));
     assert.equal(highlighted, "repeated phrase");
+    const occurrence = await page.evaluate(() => {
+      const root = document.querySelector("[data-message-content]");
+      const index = window.selectionTest.buildTextIndex(root);
+      const range = [...CSS.highlights.get("loke-side-active")][0];
+      return { actual: window.selectionTest.endpointOffset(index, range.startContainer, range.startOffset, "start"), expected: index.text.lastIndexOf("repeated phrase") };
+    });
+    assert.equal(occurrence.actual, occurrence.expected);
     await page.getByRole("textbox", { name: "Side chat question" }).press("Control+l");
     assert.equal(await page.getByRole("complementary", { name: "Side chat" }).count(), 0);
   } finally { await context.close(); }
@@ -177,6 +194,7 @@ test("math fragment highlight survives resize and horizontal code scroll without
     assert.equal(painted.map((part) => part.text).join(""), "bc−ad");
     assert.ok(painted.every((part) => !part.parent.includes("mathml")));
     assert.equal(await page.locator(".katex-display .katex-html").innerHTML(), before);
+    if (process.env.LOKE_SELECTION_SCREENSHOT) await page.screenshot({ path: process.env.LOKE_SELECTION_SCREENSHOT });
     await page.getByRole("slider", { name: "Side chat width" }).fill("560");
     await page.getByRole("button", { name: "Close side chat" }).click();
     await selectQuote(page, "alpha + 2");
@@ -212,5 +230,140 @@ test("Escape, outside click, draft shortcut and narrow-screen source navigation"
     assert.equal(await page.getByRole("dialog", { name: "Side chat" }).count(), 0);
     assert.equal(await page.locator(".conversation").evaluate((el) => el.inert), false);
     await page.waitForFunction(() => document.activeElement?.hasAttribute("data-message-content"));
+  } finally { await context.close(); }
+});
+
+
+test("physical pointer drag captures a partial Prism identifier and source clicks reopen without a new request", async () => {
+  const { page, context, requests } = await fixture();
+  try {
+    const positions = await page.evaluate(() => {
+      const root = document.querySelector("[data-message-content]");
+      const index = window.selectionTest.buildTextIndex(root);
+      const start = index.text.indexOf("beta");
+      const ranges = window.selectionTest.restoreRanges(index, start, start + 3);
+      ranges[0].startContainer.parentElement.scrollIntoView({ block: "center" });
+      const first = ranges[0].getBoundingClientRect();
+      return { x1: first.left + .5, x2: first.right - .5, y: first.top + first.height / 2 };
+    });
+    await page.mouse.move(positions.x1, positions.y); await page.mouse.down();
+    await page.mouse.move(positions.x2, positions.y, { steps: 12 }); await page.mouse.up();
+    await page.getByRole("textbox", { name: "Ask about this passage" }).waitFor();
+    const quote = await page.locator(".selection-popover blockquote").textContent();
+    assert.ok(quote.length >= 2 && quote.length < 5, quote);
+    await ask(page, "What is this identifier?");
+    await page.getByRole("button", { name: "Send question" }).waitFor();
+    await page.getByRole("button", { name: "Close side chat" }).click();
+    const point = await page.evaluate(() => {
+      const range = [...CSS.highlights.get("loke-side")][0];
+      const rect = range.getBoundingClientRect(); return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    });
+    await page.mouse.click(point.x, point.y);
+    await page.getByRole("complementary", { name: "Side chat" }).waitFor();
+    assert.equal(requests.filter((r) => r.path === "side-threads/reply").length, 1);
+  } finally { await context.close(); }
+});
+
+test("popover copy uses the source before editing and normal input copy afterward; dismissal sends nothing", async () => {
+  const { page, context, requests } = await fixture();
+  try {
+    await selectQuote(page, "code_token");
+    const untouched = await page.locator("#passage-question").evaluate((input) => {
+      const data = new DataTransfer(); const event = new ClipboardEvent("copy", { bubbles: true, cancelable: true, clipboardData: data }); input.dispatchEvent(event);
+      return { prevented: event.defaultPrevented, text: data.getData("text/plain") };
+    });
+    assert.deepEqual(untouched, { prevented: true, text: "code_token" });
+    await page.locator("#passage-question").fill("Edited"); await page.locator("#passage-question").fill("");
+    const edited = await page.locator("#passage-question").evaluate((input) => {
+      const event = new ClipboardEvent("copy", { bubbles: true, cancelable: true, clipboardData: new DataTransfer() }); input.dispatchEvent(event); return event.defaultPrevented;
+    });
+    assert.equal(edited, false);
+    await page.locator(".conversation-topline").click({ position: { x: 200, y: 20 } });
+    assert.equal(await page.locator(".selection-popover").count(), 0);
+    assert.equal(requests.filter((r) => r.path === "side-threads/reply").length, 0);
+  } finally { await context.close(); }
+});
+
+test("workspace polling preserves the main reading position while using the side panel", async () => {
+  const { page, context, requests } = await fixture();
+  try {
+    await selectQuote(page, "repeated phrase", 1); await ask(page, "Keep my place");
+    await page.getByRole("button", { name: "Send question" }).waitFor();
+    await page.locator(".conversation-body").evaluate((el) => { el.scrollTop = 30; });
+    const top = await page.locator(".conversation-body").evaluate((el) => el.scrollTop);
+    const count = requests.filter((r) => r.path === "workspace").length;
+    await page.waitForFunction(() => true);
+    await new Promise((resolve) => setTimeout(resolve, 5500));
+    assert.ok(requests.filter((r) => r.path === "workspace").length > count);
+    assert.equal(await page.locator(".conversation-body").evaluate((el) => el.scrollTop), top);
+    await page.getByRole("button", { name: "Close side chat" }).click();
+    await page.getByRole("button", { name: "Other chat", exact: true }).click();
+    assert.equal(await page.locator(".side-thread-links").count(), 0);
+    await page.getByRole("button", { name: "Rich selection fixture", exact: true }).click();
+    await page.getByText("Side chats (1)", { exact: true }).waitFor();
+  } finally { await context.close(); }
+});
+
+
+test("retry and Stop keep one question and reject a delayed response", async () => {
+  let attempt = 0, release;
+  const waiting = new Promise((resolve) => { release = resolve; });
+  const { page, context, requests } = await fixture({ sideReply: async (route, body) => {
+    attempt++;
+    const event = (type, text) => JSON.stringify({ thread_id: body.thread_id, request_id: body.request_id, type, text }) + "\n";
+    if (attempt === 1) return route.fulfill({ contentType: "application/x-ndjson", body: event("error", "Try again") });
+    if (attempt === 2) { await waiting; await route.fulfill({ contentType: "application/x-ndjson", body: event("completed", "Stale answer") }).catch(() => {}); return; }
+    return route.fulfill({ contentType: "application/x-ndjson", body: event("completed", "Recovered answer") });
+  } });
+  try {
+    await selectQuote(page, "code_token"); await ask(page, "Explain this token");
+    await page.getByRole("button", { name: "Retry reply" }).waitFor();
+    await page.getByRole("button", { name: "Retry reply" }).click();
+    await page.getByRole("button", { name: "Stop reply" }).click();
+    await page.getByRole("button", { name: "Retry reply" }).click();
+    await page.getByText("Recovered answer", { exact: true }).waitFor();
+    release();
+    assert.equal(await page.locator(".side-thread-message.user").count(), 1);
+    assert.equal(await page.getByText("Stale answer", { exact: true }).count(), 0);
+    const sent = requests.filter((r) => r.path === "side-threads/reply").map((r) => r.body);
+    assert.ok(sent.every((body) => body.question === "Explain this token" && body.history.length === 0));
+    assert.equal(new Set(sent.map((body) => body.thread_id)).size, 1);
+  } finally { release(); await context.close(); }
+});
+
+test("closing a running thread keeps its response isolated while another thread is active", async () => {
+  let release;
+  const waiting = new Promise((resolve) => { release = resolve; });
+  const { page, context } = await fixture({ sideReply: async (route, body) => {
+    if (body.question === "Question A") await waiting;
+    const text = body.question === "Question A" ? "Answer A" : "Answer B";
+    await route.fulfill({ contentType: "application/x-ndjson", body: JSON.stringify({ thread_id: body.thread_id, request_id: body.request_id, type: "completed", text }) + "\n" });
+  } });
+  try {
+    await selectQuote(page, "code_token"); await ask(page, "Question A");
+    await page.getByRole("button", { name: "Stop reply" }).waitFor();
+    await page.getByRole("button", { name: "Close side chat" }).click();
+    await selectQuote(page, "a2"); await ask(page, "Question B");
+    await page.getByText("Answer B", { exact: true }).waitFor();
+    release();
+    assert.equal(await page.getByText("Answer A", { exact: true }).count(), 0);
+    await page.getByRole("button", { name: "Close side chat" }).click();
+    await page.getByText("Side chats (2)", { exact: true }).click();
+    await page.getByRole("button", { name: /^Open side chat 1:/ }).click();
+    await page.getByText("Answer A", { exact: true }).waitFor();
+    assert.equal(await page.getByText("Answer B", { exact: true }).count(), 0);
+  } finally { release(); await context.close(); }
+});
+
+test("source changes invalidate the thread rather than relocating an identical quote", async () => {
+  const { page, context, updateSource } = await fixture();
+  try {
+    await selectQuote(page, "repeated phrase", 1); await ask(page, "Anchor question");
+    await page.getByRole("button", { name: "Send question" }).waitFor();
+    updateSource("Changed source with repeated phrase elsewhere.");
+    await page.waitForFunction(() => document.querySelector("[data-message-content]")?.textContent.includes("Changed source"));
+    await page.waitForFunction(() => !document.querySelector(".side-thread-panel"));
+    assert.equal(await page.locator(".side-thread-links").count(), 0);
+    assert.equal(await page.evaluate(() => CSS.highlights.get("loke-side-active")?.size || 0), 0);
   } finally { await context.close(); }
 });

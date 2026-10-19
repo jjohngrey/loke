@@ -15,7 +15,8 @@
     "contracts:generate": ".venv/bin/python scripts/export_contracts.py && json2ts -i shared/contracts/generated/contracts.schema.json -o shared/contracts/src/generated.ts",
     "test": ".venv/bin/python -m pytest",
     "check": "npm run contracts:generate && npm run typecheck && npm test",
-    "test:selection": "node --test tests/test_inline_threads.mjs"
+    "test:selection": "node --test tests/test_inline_threads.mjs",
+    "test:side-threads": "node --test tests/test_side_thread_store.mjs tests/test_side_thread_client.mjs"
   },
   "devDependencies": {
     "json-schema-to-typescript": "^15.0.4",

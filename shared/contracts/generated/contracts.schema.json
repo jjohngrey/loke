@@ -2346,6 +2346,187 @@
       "title": "RuntimeResetResult",
       "type": "object"
     },
+    "SideThreadAnchor": {
+      "additionalProperties": false,
+      "properties": {
+        "chat_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Chat Id",
+          "type": "string"
+        },
+        "message_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Message Id",
+          "type": "string"
+        },
+        "source_markdown": {
+          "maxLength": 100000,
+          "minLength": 1,
+          "title": "Source Markdown",
+          "type": "string"
+        },
+        "selected_text": {
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Selected Text",
+          "type": "string"
+        },
+        "start_offset": {
+          "minimum": 0,
+          "title": "Start Offset",
+          "type": "integer"
+        },
+        "end_offset": {
+          "exclusiveMinimum": 0,
+          "title": "End Offset",
+          "type": "integer"
+        },
+        "stream_version": {
+          "const": "loke-rendered-v1",
+          "title": "Stream Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "chat_id",
+        "message_id",
+        "source_markdown",
+        "selected_text",
+        "start_offset",
+        "end_offset",
+        "stream_version"
+      ],
+      "title": "SideThreadAnchor",
+      "type": "object"
+    },
+    "SideThreadEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "thread_id": {
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "request_id": {
+          "title": "Request Id",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "delta",
+            "completed",
+            "error"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "text": {
+          "default": "",
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "thread_id",
+        "request_id",
+        "type"
+      ],
+      "title": "SideThreadEvent",
+      "type": "object"
+    },
+    "SideThreadRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "generation_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Generation Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "request_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        },
+        "anchor": {
+          "$ref": "#/$defs/SideThreadAnchor"
+        },
+        "main_history": {
+          "items": {
+            "$ref": "#/$defs/SideThreadTurn"
+          },
+          "maxItems": 200,
+          "title": "Main History",
+          "type": "array"
+        },
+        "history": {
+          "items": {
+            "$ref": "#/$defs/SideThreadTurn"
+          },
+          "maxItems": 100,
+          "title": "History",
+          "type": "array"
+        },
+        "main_history_truncated": {
+          "default": false,
+          "title": "Main History Truncated",
+          "type": "boolean"
+        },
+        "history_truncated": {
+          "default": false,
+          "title": "History Truncated",
+          "type": "boolean"
+        },
+        "question": {
+          "maxLength": 8000,
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        }
+      },
+      "required": [
+        "generation_id",
+        "thread_id",
+        "request_id",
+        "anchor",
+        "question"
+      ],
+      "title": "SideThreadRequest",
+      "type": "object"
+    },
+    "SideThreadTurn": {
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "enum": [
+            "user",
+            "assistant"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 24000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "text"
+      ],
+      "title": "SideThreadTurn",
+      "type": "object"
+    },
     "SourceChunk": {
       "additionalProperties": false,
       "properties": {
@@ -2908,6 +3089,12 @@
     },
     "run_outcome": {
       "$ref": "#/$defs/RunOutcome"
+    },
+    "side_thread_request": {
+      "$ref": "#/$defs/SideThreadRequest"
+    },
+    "side_thread_event": {
+      "$ref": "#/$defs/SideThreadEvent"
     }
   },
   "required": [
@@ -2942,7 +3129,9 @@
     "runtime_cancel_result",
     "run_limits",
     "run_event",
-    "run_outcome"
+    "run_outcome",
+    "side_thread_request",
+    "side_thread_event"
   ],
   "title": "PublishedContracts",
   "type": "object"

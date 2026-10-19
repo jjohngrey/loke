@@ -889,3 +889,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .has-side-thread .side-thread-links { visibility: hidden; }
   .side-thread-panel header button { min-height: 44px; }
 }
+
+.has-side-links > .conversation .conversation-topline { padding-right: 160px; }
+[data-message-content]:focus-visible { outline: 2px solid var(--color-action); outline-offset: 4px; border-radius: 4px; }
+.side-thread-width { white-space: nowrap; }
