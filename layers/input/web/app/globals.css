@@ -645,7 +645,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   white-space: pre;
 }
 .chat-code-content { margin: 0; }
-.chat-code-line { display: block; }
+.chat-code-line { display: inline; }
 .chat-markdown-pending.is-math {
   border: 0;
   background: transparent;
