@@ -35,6 +35,7 @@ from loke_contracts.runtime import (
     RuntimeReset,
     RuntimeResetResult,
 )
+from loke_contracts.side_threads import SideThreadRequest
 from loke_memory.store import ConflictError, Store
 from loke_memory.tiered import MemoryLimits
 
@@ -45,6 +46,7 @@ from .openrouter import OpenRouterError
 from .runtime_model import DemoRuntimeModel, OpenRouterRuntimeModel
 from .runtime_tools import example_registry
 from .scheduler import ReviewScheduler
+from .side_threads import DemoSideThreadModel, SideThreadResponses
 from .source_documents import MAX_BYTES, ingest_source
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -80,10 +82,14 @@ def create_app(database_url: str | None = None, learner_id: str | None = None,
         example_registry(), InMemorySessionStore(),
     )
 
+    side_responses = SideThreadResponses(
+        DemoSideThreadModel() if mode == "demo" and agent_runtime is None else runtime_engine.model)
+
     @asynccontextmanager
     async def lifespan(app):
         await scheduler.start()
         yield
+        side_responses.cancel_all()
         await runtime_engine.shutdown()
         await scheduler.stop()
         store.engine.dispose()
@@ -128,6 +134,16 @@ def create_app(database_url: str | None = None, learner_id: str | None = None,
         return {"status": "ok", "mode": mode}
 
     protected = [Depends(authorize)]
+
+    @app.post("/api/side-threads/reply", dependencies=protected, response_class=StreamingResponse)
+    async def side_thread_reply(payload: SideThreadRequest):
+        from starlette.concurrency import run_in_threadpool
+
+        epoch = side_responses.epoch
+        initial = await run_in_threadpool(store.snapshot, selected_learner)
+        if not initial["storage_consent"] or payload.generation_id != initial["generation_id"]:
+            raise HTTPException(409, "The source belongs to an expired learning session.")
+        return side_responses.response(payload, epoch)
 
     @app.post("/api/runtime/run", dependencies=protected, response_class=StreamingResponse,
               responses={200: {"content": {"application/x-ndjson": {"schema": {"type": "string"}}}}})
@@ -234,6 +250,7 @@ def create_app(database_url: str | None = None, learner_id: str | None = None,
     async def delete_learner(generation_id: str | None = None):
         from starlette.concurrency import run_in_threadpool
         await run_in_threadpool(store.delete_learner, selected_learner, generation_id)
+        side_responses.cancel_all()
         # Deletion invalidates model context and cancels outstanding runs for this learner.
         for (owner, session_id), session in list(getattr(runtime_engine.store, "sessions", {}).items()):
             if owner == selected_learner or owner.startswith(selected_learner + ":"):

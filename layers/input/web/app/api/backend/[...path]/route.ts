@@ -17,6 +17,7 @@ const allowed = new Set([
   "demo/clock",
   "learner",
   "audio/transcribe",
+  "side-threads/reply",
   "runtime/run",
   "runtime/cancel",
   "runtime/reset",

@@ -15,6 +15,7 @@ from loke_contracts.runtime import (
     RuntimeReset,
     RuntimeResetResult,
 )
+from loke_contracts.side_threads import SideThreadEvent, SideThreadRequest
 from loke_contracts.source import SourceDocument, SourceGraph
 
 
@@ -35,6 +36,8 @@ class PublishedContracts(ContractBundle):
     run_limits: RunLimits
     run_event: RunEvent
     run_outcome: RunOutcome
+    side_thread_request: SideThreadRequest
+    side_thread_event: SideThreadEvent
 
 root = Path(__file__).resolve().parent.parent
 out = root / "shared/contracts/generated/contracts.schema.json"

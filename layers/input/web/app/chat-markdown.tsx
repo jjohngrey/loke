@@ -1,6 +1,6 @@
 "use client";
 
-import { Children, isValidElement, useEffect, useState, type ReactNode } from "react";
+import { Children, Fragment, isValidElement, useEffect, useState, type ReactNode } from "react";
 import Markdown, { type Components } from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
@@ -49,7 +49,7 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
 
   return (
     <div className="chat-code-block">
-      <div className="chat-code-header">
+      <div className="chat-code-header" data-selection-exclude>
         <span>{language || "Code"}</span>
         <button type="button" onClick={() => void copyCode()}>
           {copyState === "copied" ? "Copied" : copyState === "error" ? "Copy failed" : "Copy"}
@@ -59,11 +59,14 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
         {({ tokens, getLineProps, getTokenProps }) => (
           <pre className="chat-code-content">
             {tokens.map((line, index) => (
-              <span key={index} {...getLineProps({ line, className: "chat-code-line" })}>
+              <Fragment key={index}>
+              {index > 0 && "\n"}
+              <span {...getLineProps({ line, className: "chat-code-line" })}>
                 {line.map((token, tokenIndex) => (
-                  <span key={tokenIndex} {...getTokenProps({ token })} />
+                  <span key={tokenIndex} {...getTokenProps({ token })}>{token.empty ? "" : token.content}</span>
                 ))}
               </span>
+              </Fragment>
             ))}
           </pre>
         )}
