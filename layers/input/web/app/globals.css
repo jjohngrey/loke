@@ -848,3 +848,44 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .chat-folder-label select { padding: 5px; border: 1px solid #c7c7c1; border-radius: 6px; }
 button:disabled { opacity: .45; cursor: not-allowed; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #476c4a; outline-offset: 3px; }
+
+/* Source highlights use the browser's text paint, preserving Prism and KaTeX. */
+::highlight(loke-side) { background: var(--color-warning-subtle); }
+::highlight(loke-side-active) { background: var(--color-action-subtle); }
+::highlight(loke-side-preview) { background: var(--color-action-subtle); }
+.thread-layout { position: relative; display: flex; min-width: 0; min-height: 0; overflow: hidden; }
+.thread-layout > .conversation { flex: 1; }
+.side-thread-panel { display: flex; flex-direction: column; width: min(var(--side-thread-width), 48%); flex-shrink: 0; min-height: 0; border-left: 1px solid var(--color-border); background: var(--color-surface); }
+.side-thread-panel header { display: flex; align-items: center; justify-content: space-between; min-height: 56px; padding: 8px 18px; border-bottom: 1px solid var(--color-border); }
+.side-thread-panel button, .selection-popover button, .side-thread-links button { min-height: 32px; padding: 6px 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface-muted); color: var(--color-text); font: inherit; cursor: pointer; }
+.side-thread-panel button:disabled, .selection-popover button:disabled { opacity: .5; cursor: default; }
+.side-thread-panel :focus-visible, .selection-popover :focus-visible, .side-thread-links :focus-visible { outline: 2px solid var(--color-action); outline-offset: 2px; }
+.side-thread-source { padding: 14px 18px 8px; border-bottom: 1px solid var(--color-border); }
+.side-thread-source > span { color: var(--color-text-muted); font-size: var(--font-size-body-sm); }
+.side-thread-source blockquote, .selection-popover blockquote { margin: 8px 0; padding-left: 10px; border-left: 2px solid var(--color-action); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 100px; overflow: auto; font-size: var(--font-size-body); }
+.side-thread-width { display: flex; gap: 12px; align-items: center; padding: 8px 18px; color: var(--color-text-muted); font-size: var(--font-size-body-sm); }
+.side-thread-width input { width: 100%; min-width: 40px; accent-color: var(--color-action); }
+.side-thread-messages { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 12px 18px; }
+.side-thread-message { margin-bottom: 20px; min-width: 0; }
+.side-thread-message > span { font-size: var(--font-size-body-sm); font-weight: 600; color: var(--color-text-muted); }
+.side-thread-message p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.side-thread-composer { padding: 12px 18px; border-top: 1px solid var(--color-border); }
+.side-thread-composer textarea { display: block; width: 100%; resize: vertical; min-height: 72px; max-height: 180px; border: 1px solid var(--color-border-strong); border-radius: 10px; padding: 10px; color: var(--color-text); background: var(--color-surface-muted); font: inherit; }
+.side-thread-composer button { display: block; margin: 8px 0 0 auto; }
+.side-thread-links { position: absolute; top: 10px; right: 16px; z-index: 4; max-width: 220px; font-size: var(--font-size-body-sm); }
+.has-side-thread .side-thread-links { right: calc(min(var(--side-thread-width), 48%) + 16px); }
+.side-thread-links summary { cursor: pointer; min-height: 32px; padding: 7px; background: var(--color-surface); border-radius: 8px; }
+.side-thread-links details[open] { padding: 6px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); box-shadow: var(--shadow-raised); }
+.side-thread-links button { display: block; width: 100%; margin-top: 4px; text-align: left; overflow-wrap: anywhere; }
+.selection-popover { position: fixed; z-index: 80; width: min(360px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow: auto; padding: 12px; border: 1px solid var(--color-border-strong); border-radius: 12px; background: var(--color-surface-muted); box-shadow: var(--shadow-raised); }
+.selection-popover > div { display: flex; gap: 6px; }
+.selection-popover input { flex: 1; min-width: 0; padding: 8px; border: 1px solid var(--color-border-strong); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font: inherit; }
+.selection-popover .selection-dismiss { display: block; margin: 6px 0 0 auto; border: 0; font-size: var(--font-size-body-sm); }
+.selection-fallback { pointer-events: none; }
+.selection-fallback i { position: fixed; z-index: 2; background: var(--color-warning-subtle); opacity: .45; pointer-events: none; }
+.selection-fallback i.active { background: var(--color-action-subtle); }
+@media (max-width: 767px) {
+  .side-thread-panel { position: fixed; inset: 0; z-index: 60; width: 100%; border: 0; }
+  .has-side-thread .side-thread-links { visibility: hidden; }
+  .side-thread-panel header button { min-height: 44px; }
+}

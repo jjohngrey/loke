@@ -1,4 +1,4 @@
-Repeated phrase then **bold** and repeated phrase again. Inline `code_token` and $a^2 + b^2$ finish here.
+repeated phrase then **bold** and repeated phrase again. Inline `code_token` and $a^2 + b^2$ finish here.
 
 ```python
 alpha = 1

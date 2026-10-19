@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { InlineThreads } from "./inline-threads";
 import { ChatMarkdown } from "./chat-markdown";
 import { RuntimeElement } from "./runtime-elements";
 import { useRuntimeChat } from "./use-runtime-chat";
@@ -429,7 +430,7 @@ export default function Workspace() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: "end" });
-  }, [activeChatId, chats]);
+  }, [activeChatId, activeChat?.messages.at(-1)?.id]);
 
   function selectChat(id: string) {
     setSection("chats");
@@ -758,6 +759,14 @@ export default function Workspace() {
             </div>
           </aside>
 
+          <InlineThreads key={view?.generation_id || "initial"}
+            chatId={section === "chats" ? activeChatId : null}
+            sources={(activeChat?.messages || []).filter((message) => message.role === "loke").map((message) => ({
+              id: message.id, markdown: message.text,
+              history: activeChat!.messages.slice(0, activeChat!.messages.indexOf(message) + 1).map((item) => ({
+                role: item.role === "loke" ? "assistant" as const : "user" as const, text: item.text,
+              })),
+            }))}>
           <main className="conversation" aria-label="Loke workspace">
             <div className="conversation-topline">
               <button
@@ -905,7 +914,10 @@ export default function Workspace() {
                               <Icon name="spark" size={19} />
                             </div>
                           )}
-                          <div className="message-content">
+                          <div className="message-content"
+                            data-message-content={message.role === "loke" ? "" : undefined}
+                            data-message-id={message.id}
+                            tabIndex={message.role === "loke" ? -1 : undefined}>
                             {message.role === "loke" ? (
                               <>
                                 {activeChat.messages.at(-1)?.id ===
@@ -922,8 +934,7 @@ export default function Workspace() {
                                           text={block.text}
                                         />
                                       ) : (
-                                        <RuntimeElement
-                                          key={block.id}
+                                        <div key={block.id} data-selection-exclude><RuntimeElement
                                           element={block.element}
                                           disabled={busy}
                                           onChoose={(choice, question) =>
@@ -932,13 +943,13 @@ export default function Workspace() {
                                               `Question: ${question}\nSelected choice: ${choice}`,
                                             )
                                           }
-                                        />
+                                        /></div>
                                       ),
                                   )
                                 ) : (
                                   <ChatMarkdown text={message.text} />
                                 )}
-                                <CopyResponseButton text={message.text} />
+                                <div data-selection-exclude><CopyResponseButton text={message.text} /></div>
                               </>
                             ) : (
                               <p>{message.text}</p>
@@ -1343,6 +1354,7 @@ export default function Workspace() {
               </div>
             )}
           </main>
+          </InlineThreads>
         </div>
       </div>
 
